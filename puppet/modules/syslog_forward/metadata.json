@@ -1,0 +1,18 @@
+{
+  "name": "ishtar-syslog_forward",
+  "version": "1.0.0",
+  "author": "ishtar",
+  "summary": "Configures rsyslog to forward all syslog to a central receiver via TCP",
+  "license": "Apache-2.0",
+  "source": "",
+  "dependencies": [],
+  "requirements": [
+    { "name": "puppet", "version_requirement": ">= 7.0.0 < 9.0.0" }
+  ],
+  "operatingsystem_support": [
+    { "operatingsystem": "Debian" },
+    { "operatingsystem": "Ubuntu" },
+    { "operatingsystem": "RedHat" },
+    { "operatingsystem": "CentOS" }
+  ]
+}

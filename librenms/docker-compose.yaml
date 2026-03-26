@@ -1,0 +1,139 @@
+# Named volumes for DB and LibreNMS data - history and discovered devices
+# survive restarts. Docker manages them, no manual backup needed.
+# Full wipe: docker compose down -v
+#
+# Variables are loaded from .env (gitignored).
+# Copy .env.example to .env and fill in your values before starting.
+
+services:
+  db:
+    image: mariadb:latest
+    container_name: librenms-db
+    restart: unless-stopped
+    network_mode: host
+    command: ['--innodb-file-per-table=1', '--lower-case-table-names=0', '--collation-server=utf8mb4_unicode_ci']
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+
+  redis:
+    image: redis:latest
+    container_name: librenms-redis
+    restart: unless-stopped
+    network_mode: host
+
+  librenms:
+    image: librenms/librenms:latest
+    container_name: librenms
+    restart: unless-stopped
+    hostname: librenms
+    network_mode: host
+    dns:
+      - ${DNS_SERVER}
+    depends_on:
+      - db
+      - redis
+    environment:
+      TZ: ${TZ}
+      PUID: 1000
+      PGID: 1000
+      DB_HOST: 127.0.0.1
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_HOST: 127.0.0.1
+      APP_URL: ${APP_URL}
+      SNMP_COMMUNITY: ${SNMP_COMMUNITY}
+      DISCOVERY_SUBNET: ${DISCOVERY_SUBNET}
+      SYSLOG_PURGE_DAYS: ${SYSLOG_PURGE_DAYS}
+    volumes:
+      - librenms_data:/data
+      - ./config.php:/data/config/config.php:ro
+
+  dispatcher:
+    image: librenms/librenms:latest
+    container_name: librenms-dispatcher
+    restart: unless-stopped
+    hostname: dispatcher1
+    network_mode: host
+    dns:
+      - ${DNS_SERVER}
+    depends_on:
+      - librenms
+    environment:
+      TZ: ${TZ}
+      PUID: 1000
+      PGID: 1000
+      DB_HOST: 127.0.0.1
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_HOST: 127.0.0.1
+      DISPATCHER_NODE_ID: dispatcher1
+      SIDECAR_DISPATCHER: 1
+    volumes:
+      - librenms_data:/data
+
+  syslogng:
+    image: librenms/librenms:latest
+    container_name: librenms-syslogng
+    restart: unless-stopped
+    network_mode: host
+    dns:
+      - ${DNS_SERVER}
+    depends_on:
+      - librenms
+    environment:
+      TZ: ${TZ}
+      PUID: 1000
+      PGID: 1000
+      DB_HOST: 127.0.0.1
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      REDIS_HOST: 127.0.0.1
+      SIDECAR_SYSLOGNG: 1
+    volumes:
+      - librenms_data:/data
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: librenms-nginx
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - librenms
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    # Generates a throwaway self-signed cert into /tmp, then starts nginx.
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache openssl -q && openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /tmp/key.pem -out /tmp/cert.pem -subj '/CN=librenms' 2>/dev/null && nginx -g 'daemon off;'"]
+
+  scan:
+    image: docker:cli
+    container_name: librenms-scan
+    restart: "no"
+    depends_on:
+      - librenms
+    environment:
+      LNMS_ADMIN_USER: ${LNMS_ADMIN_USER}
+      LNMS_ADMIN_PASS: ${LNMS_ADMIN_PASS}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Waits 60s for DB migrations, creates/updates admin user, then sweeps subnets.
+    # Runs once per "docker-compose up". Safe to re-run - user:add updates if exists.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        sleep 60
+        docker exec -u librenms librenms lnms user:add \
+          --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER"
+        docker exec -u librenms librenms lnms scan
+
+volumes:
+  db_data:
+  librenms_data:
