@@ -1,9 +1,8 @@
-# Named volumes for DB and LibreNMS data - history and discovered devices
-# survive restarts. Docker manages them, no manual backup needed.
-# Full wipe: docker compose down -v
-#
 # Variables are loaded from .env (gitignored).
 # Copy .env.example to .env and fill in your values before starting.
+#
+# Persistent data lives at DATA_DIR (set in .env, default /opt/monitor_stack).
+# Use the scripts/utility/ helpers to manage the stack lifecycle.
 
 services:
   db:
@@ -18,7 +17,7 @@ services:
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - db_data:/var/lib/mysql
+      - ${DATA_DIR}/db:/var/lib/mysql
 
   redis:
     image: redis:latest
@@ -54,7 +53,7 @@ services:
       DISCOVERY_SUBNET: ${DISCOVERY_SUBNET}
       SYSLOG_PURGE_DAYS: ${SYSLOG_PURGE_DAYS}
     volumes:
-      - librenms_data:/data
+      - ${DATA_DIR}/librenms:/data
       - ./config.php:/data/config/config.php:ro
       - ./scripts/post/librenms/post_librenms_import_alerts.php:/data/init-scripts/post_librenms_import_alerts.php:ro
 
@@ -84,7 +83,7 @@ services:
       DISPATCHER_NODE_ID: dispatcher1
       SIDECAR_DISPATCHER: 1
     volumes:
-      - librenms_data:/data
+      - ${DATA_DIR}/librenms:/data
 
   syslogng:
     build: .
@@ -110,7 +109,7 @@ services:
       SESSION_DRIVER: redis
       SIDECAR_SYSLOGNG: 1
     volumes:
-      - librenms_data:/data
+      - ${DATA_DIR}/librenms:/data
 
   nginx:
     image: nginx:stable-alpine
@@ -145,6 +144,3 @@ services:
       - ./scripts:/scripts:ro
     command: ["sh", "/scripts/post/librenms/post_librenms_bootstrap.sh"]
 
-volumes:
-  db_data:
-  librenms_data:

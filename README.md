@@ -90,12 +90,23 @@ IMPORT_ALERT_COLLECTION=1
 
 Leave `LNMS_API_TOKEN` empty to skip rule import. Set `IMPORT_ALERT_COLLECTION=0` to disable even when a token is set.
 
+### Stack management
+
+All lifecycle operations are in `librenms/scripts/utility/`. Run them from anywhere — they navigate to the right directory automatically.
+
+| Script | What it does |
+|---|---|
+| `build-stack.sh` | Build images and start all containers |
+| `restart-stack.sh` | Stop and restart — data preserved |
+| `upgrade-stack.sh` | Pull latest images, rebuild, restart — data preserved |
+| `destructive-recreate.sh` | **Wipes all data**, then rebuilds and starts |
+| `destroy-stack.sh` | **Wipes all data** and stops — does not rebuild |
+
 ### Start
 
 ```bash
 cd ~/projects/LibreNMS/librenms
-docker compose build
-docker compose up -d
+./scripts/utility/build-stack.sh
 ```
 
 LibreNMS takes ~2 minutes to fully initialise on first boot (DB migrations run). Watch it:
@@ -209,12 +220,15 @@ Dashboards live in the DB volume and survive restarts. They are lost on `docker-
 
 ### Persistence
 
-Named Docker volumes (`db_data`, `librenms_data`) keep all discovered devices, graphs, and syslog history across restarts. Docker manages them — no manual backup needed.
+All data is stored at `DATA_DIR` (set in `.env`, default `/opt/monitor_stack`). This is a plain host directory — Docker has no control over it. It survives container restarts, image rebuilds, and `docker compose down`. Only `destructive-recreate.sh` and `destroy-stack.sh` will remove it.
 
-Full wipe if you ever want to start from scratch:
-```bash
-docker compose down -v
 ```
+/opt/monitor_stack/
+  db/        ← MariaDB files
+  librenms/  ← RRD graphs, discovered device data, logs
+```
+
+Back it up with rsync or any standard file backup. To start from scratch use `destructive-recreate.sh`.
 
 ---
 
