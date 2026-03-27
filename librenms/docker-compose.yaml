@@ -27,7 +27,8 @@ services:
     network_mode: host
 
   librenms:
-    image: librenms/librenms:latest
+    build: .
+    image: librenms-local:latest
     container_name: librenms
     restart: unless-stopped
     hostname: librenms
@@ -55,10 +56,11 @@ services:
     volumes:
       - librenms_data:/data
       - ./config.php:/data/config/config.php:ro
-      - ./scripts/import-alert-collection.php:/data/init-scripts/import-alert-collection.php:ro
+      - ./scripts/post/librenms/post_librenms_import_alerts.php:/data/init-scripts/post_librenms_import_alerts.php:ro
 
   dispatcher:
-    image: librenms/librenms:latest
+    build: .
+    image: librenms-local:latest
     container_name: librenms-dispatcher
     restart: unless-stopped
     hostname: dispatcher1
@@ -85,7 +87,8 @@ services:
       - librenms_data:/data
 
   syslogng:
-    image: librenms/librenms:latest
+    build: .
+    image: librenms-local:latest
     container_name: librenms-syslogng
     restart: unless-stopped
     network_mode: host
@@ -117,11 +120,11 @@ services:
     depends_on:
       - librenms
     environment:
-      SERVER_NAME: ${APP_URL}
+      APP_URL: ${APP_URL}
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf.template:ro
-    # Generates a throwaway self-signed cert into /tmp, substitutes SERVER_NAME from .env, then starts nginx.
-    entrypoint: ["/bin/sh", "-c", "apk add --no-cache openssl envsubst -q && openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /tmp/key.pem -out /tmp/cert.pem -subj '/CN=librenms' 2>/dev/null && SERVER_NAME=$(echo ${APP_URL} | sed 's|https://||g' | sed 's|http://||g') && envsubst < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"]
+      - ./scripts/pre/nginx/pre_nginx_start.sh:/pre_nginx_start.sh:ro
+    entrypoint: ["sh", "/pre_nginx_start.sh"]
 
   scan:
     image: docker:cli
@@ -139,25 +142,8 @@ services:
       IMPORT_ALERT_COLLECTION: ${IMPORT_ALERT_COLLECTION:-1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    # Waits 60s for DB migrations, creates/updates admin user, imports alert collection
-    # (optional), then subnet scan. Runs once per "docker-compose up".
-    command:
-      - /bin/sh
-      - -c
-      - |
-        sleep 60
-        docker exec -u librenms librenms lnms user:add \
-          --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER"
-        if [ "${IMPORT_ALERT_COLLECTION:-1}" = "1" ] && [ -n "${LNMS_API_TOKEN:-}" ]; then
-          docker exec -e MYSQL_PWD="$DB_PASSWORD" librenms-db mariadb -u"$DB_USER" "$DB_NAME" \
-            -e "DELETE FROM api_tokens WHERE description = 'monitor_stack bootstrap';"
-          docker exec -e MYSQL_PWD="$DB_PASSWORD" librenms-db mariadb -u"$DB_USER" "$DB_NAME" \
-            -e "INSERT INTO api_tokens (user_id, token_hash, description, disabled) SELECT user_id, '${LNMS_API_TOKEN}', 'monitor_stack bootstrap', 0 FROM users WHERE username='${LNMS_ADMIN_USER}' LIMIT 1;"
-          docker exec -e LNMS_API_TOKEN="$LNMS_API_TOKEN" -e LNMS_URL=http://127.0.0.1:8000 \
-            librenms php /data/init-scripts/import-alert-collection.php
-        fi
-        # Initiate a scan
-        docker exec -u librenms librenms lnms scan
+      - ./scripts:/scripts:ro
+    command: ["sh", "/scripts/post/librenms/post_librenms_bootstrap.sh"]
 
 volumes:
   db_data:

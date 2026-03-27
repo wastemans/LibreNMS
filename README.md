@@ -94,7 +94,8 @@ Leave `LNMS_API_TOKEN` empty to skip rule import. Set `IMPORT_ALERT_COLLECTION=0
 
 ```bash
 cd ~/projects/LibreNMS/librenms
-docker-compose up -d
+docker compose build
+docker compose up -d
 ```
 
 LibreNMS takes ~2 minutes to fully initialise on first boot (DB migrations run). Watch it:
@@ -174,7 +175,7 @@ Manual re-run (e.g. after upgrading the LibreNMS image with a newer `alert_rules
 ```bash
 cd ~/projects/LibreNMS/librenms
 export LNMS_API_TOKEN='same value as in .env'
-./scripts/import-alert-collection.sh
+./scripts/post/librenms/post_librenms_import_alerts.sh
 ```
 
 ### HTTPS via nginx reverse proxy
@@ -212,7 +213,7 @@ Named Docker volumes (`db_data`, `librenms_data`) keep all discovered devices, g
 
 Full wipe if you ever want to start from scratch:
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ---
