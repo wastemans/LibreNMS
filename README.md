@@ -27,6 +27,7 @@ pct create 115 local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst --hostname 
 ```
 
 > **Note:** If Docker warns about "system 252 detected, you may need to enable nesting", run:
+>
 > ```bash
 > pct stop 115
 > pct set 115 --features nesting=1,keyctl=1
@@ -44,11 +45,11 @@ apt update && apt install -y curl docker-compose && curl -fsSL https://get.docke
 
 ## LibreNMS Stack
 
-Everything lives under `librenms/`. Compose file: `librenms/docker-compose.yaml`. Config template: `librenms/.env.example` → copy to **`librenms/.env`** (gitignored).
+Everything lives under `librenms/`. Compose file: `librenms/docker-compose.yaml`. Config template: `librenms/.env.example` → copy to `**librenms/.env**` (gitignored).
 
 ### Architecture
 
-All services use **host networking**: they talk on `127.0.0.1` like normal processes on the VM. Data is stored on the host at **`DATA_DIR`** (bind mounts to `DATA_DIR/db` and `DATA_DIR/librenms`), not as anonymous Docker volumes.
+All services use **host networking**: they talk on `127.0.0.1` like normal processes on the VM. Data is stored on the host at `**DATA_DIR`** (bind mounts to `DATA_DIR/db` and `DATA_DIR/librenms`), not as anonymous Docker volumes.
 
 ```mermaid
 flowchart LR
@@ -69,29 +70,35 @@ flowchart LR
   scan -.-> db
 ```
 
+
+
 **Roles in one sentence each**
 
-| Service | Container | Always on? | Does |
-|---------|-----------|------------|------|
-| `db` | `librenms-db` | Yes | MariaDB; files under `DATA_DIR/db`. |
-| `redis` | `librenms-redis` | Yes | Cache + sessions for LibreNMS. |
-| `librenms` | `librenms` | Yes | Web app and CLI; listens **127.0.0.1:8000**. |
-| `dispatcher` | `librenms-dispatcher` | Yes | Poll/discovery queue worker. |
-| `syslogng` | `librenms-syslogng` | Yes | Syslog TCP **514** on the host. |
-| `nginx` | `librenms-nginx` | Yes | TLS on **443**, HTTP→HTTPS on **80**, proxy to :8000. |
-| `scan` | `librenms-scan` | **No — exits** | Bootstrap: admin user, optional imports, `lnms scan`. Needs Docker socket. |
 
-Only **`scan`** is one-shot. To run bootstrap again after it exited: `docker compose up -d` from `librenms/` (starts a new `scan` task).
+| Service      | Container             | Always on?     | Does                                                                       |
+| ------------ | --------------------- | -------------- | -------------------------------------------------------------------------- |
+| `db`         | `librenms-db`         | Yes            | MariaDB; files under `DATA_DIR/db`.                                        |
+| `redis`      | `librenms-redis`      | Yes            | Cache + sessions for LibreNMS.                                             |
+| `librenms`   | `librenms`            | Yes            | Web app and CLI; listens **127.0.0.1:8000**.                               |
+| `dispatcher` | `librenms-dispatcher` | Yes            | Poll/discovery queue worker.                                               |
+| `syslogng`   | `librenms-syslogng`   | Yes            | Syslog TCP **514** on the host.                                            |
+| `nginx`      | `librenms-nginx`      | Yes            | TLS on **443**, HTTP→HTTPS on **80**, proxy to :8000.                      |
+| `scan`       | `librenms-scan`       | **No — exits** | Bootstrap: admin user, optional imports, `lnms scan`. Needs Docker socket. |
+
+
+Only `**scan`** is one-shot. To run bootstrap again after it exited: `docker compose up -d` from `librenms/` (starts a new `scan` task).
 
 ### Environment variables (quick answers)
 
-| Question | Answer |
-|----------|--------|
-| Where are they defined? | **`librenms/.env`** |
-| Who reads `.env`? | **Docker Compose**, from the directory that contains `docker-compose.yaml` (run compose from **`librenms/`**). |
-| How do they get into containers? | Compose replaces **`${NAME}`** in `docker-compose.yaml`. Each service only gets variables listed under its **`environment:`** block. |
-| Does every service see every variable? | **No.** Example: `DISCOVERY_SUBNET` / `SNMP_COMMUNITY` are only on **`librenms`**. **`scan`** gets admin/DB/API flags; it runs `lnms` **inside** `librenms`, so scans use **`librenms`**’s env. |
-| What about `config.php`? | Mounted into **`librenms`**. It calls **`getenv()`** for URL, SNMP, subnets, syslog purge — those must be passed into the **`librenms`** container via compose. |
+
+| Question                               | Answer                                                                                                                                                                                          |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where are they defined?                | `**librenms/.env**`                                                                                                                                                                             |
+| Who reads `.env`?                      | **Docker Compose**, from the directory that contains `docker-compose.yaml` (run compose from `**librenms/`**).                                                                                  |
+| How do they get into containers?       | Compose replaces `**${NAME}**` in `docker-compose.yaml`. Each service only gets variables listed under its `**environment:**` block.                                                            |
+| Does every service see every variable? | **No.** Example: `DISCOVERY_SUBNET` / `SNMP_COMMUNITY` are only on `**librenms`**. `**scan**` gets admin/DB/API flags; it runs `lnms` **inside** `librenms`, so scans use `**librenms`**’s env. |
+| What about `config.php`?               | Mounted into `**librenms**`. It calls `**getenv()**` for URL, SNMP, subnets, syslog purge — those must be passed into the `**librenms**` container via compose.                                 |
+
 
 If a value looks missing: set it in `.env`, confirm it appears under that service in `docker-compose.yaml`, then `docker compose up -d` (recreate containers).
 
@@ -107,13 +114,15 @@ Edit at least: `DATA_DIR`, `TZ`, `DNS_SERVER`, `APP_URL`, DB fields, `SNMP_COMMU
 
 In `librenms/scripts/utility/` (run from anywhere; scripts `cd` to `librenms/`):
 
-| Script | Effect |
-|--------|--------|
-| `build-stack.sh` | Build, `up -d` |
-| `restart-stack.sh` | `down`, `up -d` (data kept) |
-| `upgrade-stack.sh` | Pull/rebuild/restart (data kept) |
+
+| Script                    | Effect                               |
+| ------------------------- | ------------------------------------ |
+| `build-stack.sh`          | Build, `up -d`                       |
+| `restart-stack.sh`        | `down`, `up -d` (data kept)          |
+| `upgrade-stack.sh`        | Pull/rebuild/restart (data kept)     |
 | `destructive-recreate.sh` | **Deletes `DATA_DIR` data**, rebuild |
-| `destroy-stack.sh` | **Deletes data**, stop, no rebuild |
+| `destroy-stack.sh`        | **Deletes data**, stop, no rebuild   |
+
 
 ### Start and logs
 
@@ -128,7 +137,7 @@ First boot can take a few minutes (DB init, migrations).
 
 ### Command cheat sheet
 
-Run **`lnms`** as user **`librenms`** inside the app container. Replace IPs and communities with yours.
+Run `**lnms**` as user `**librenms**` inside the app container. Replace IPs and communities with yours.
 
 **Discovery and devices**
 
@@ -185,11 +194,11 @@ docker exec -e MYSQL_PWD='YOUR_DB_PASSWORD' librenms-db mariadb -u librenms libr
 
 ### When something breaks
 
-- **Bootstrap / first login / auto-scan:** read **`docker logs librenms-scan`**, not only `librenms`.
-- **`SQLSTATE ... Connection refused` to MySQL during bootstrap:** MariaDB was not accepting connections yet, or `librenms` could not reach `127.0.0.1:3306`. Check **`docker logs librenms-db`**, wait, then recreate bootstrap: `docker compose up -d --force-recreate scan` from `librenms/`.
-- **`lnms config:get nets` works but DB commands fail:** `config:get` can reflect file config before the app has a stable DB session; treat **user:add / scan** errors as “DB or migrations not ready yet” and retry after DB is up.
-- **Web UI asks to create a user:** bootstrap did not finish; use **`lnms user:add`** above or fix `librenms-scan` errors and re-run `scan`.
-- **Subnets or SNMP wrong:** check **`lnms config:get nets`** and LibreNMS **Settings** (DB overrides `config.php`).
+- **Bootstrap / first login / auto-scan:** read `**docker logs librenms-scan`**, not only `librenms`.
+- `**SQLSTATE ... Connection refused` to MySQL during bootstrap:** MariaDB was not accepting connections yet, or `librenms` could not reach `127.0.0.1:3306`. Check `**docker logs librenms-db`**, wait, then recreate bootstrap: `docker compose up -d --force-recreate scan` from `librenms/`.
+- `**lnms config:get nets` works but DB commands fail:** `config:get` can reflect file config before the app has a stable DB session; treat **user:add / scan** errors as “DB or migrations not ready yet” and retry after DB is up.
+- **Web UI asks to create a user:** bootstrap did not finish; use `**lnms user:add`** above or fix `librenms-scan` errors and re-run `scan`.
+- **Subnets or SNMP wrong:** check `**lnms config:get nets`** and LibreNMS **Settings** (DB overrides `config.php`).
 
 ### Ping-only devices (no SNMP)
 
@@ -199,9 +208,9 @@ docker exec -u librenms librenms lnms device:add --ping-fallback 10.0.1.10
 
 ### Web UI and validate
 
-Use **`APP_URL`** as the URL you type in the browser. **nginx** serves **443** (self-signed cert generated at container start) and redirects **80** to HTTPS; LibreNMS itself stays on **127.0.0.1:8000**. After changing `.env` or compose, recreate **`librenms`** so its generated env stays consistent.
+Use `**APP_URL**` as the URL you type in the browser. **nginx** serves **443** (self-signed cert generated at container start) and redirects **80** to HTTPS; LibreNMS itself stays on **127.0.0.1:8000**. After changing `.env` or compose, recreate `**librenms`** so its generated env stays consistent.
 
-Admin > **Validate Install**. This stack uses **`CACHE_DRIVER=redis`** and **`SESSION_DRIVER=redis`** (see [official LibreNMS Docker image](https://github.com/librenms/docker)).
+Admin > **Validate Install**. This stack uses `**CACHE_DRIVER=redis`** and `**SESSION_DRIVER=redis**` (see [official LibreNMS Docker image](https://github.com/librenms/docker)).
 
 ### Alert rule import (optional)
 
@@ -219,14 +228,14 @@ No default dashboard. Create one under **Dashboard > New Dashboard** (e.g. Avail
 
 ### Data on disk
 
-All persistent state is under **`DATA_DIR`** (default `/opt/monitor_stack`):
+All persistent state is under `**DATA_DIR`** (default `/opt/monitor_stack`):
 
 ```
 DATA_DIR/db/       — MariaDB
 DATA_DIR/librenms/ — RRD, LibreNMS data
 ```
 
-Survives `docker compose down`. Removed only if you run **`destructive-recreate.sh`** / **`destroy-stack.sh`** or delete `DATA_DIR` yourself. Back up with rsync or your usual backup tool.
+Survives `docker compose down`. Removed only if you run `**destructive-recreate.sh**` / `**destroy-stack.sh**` or delete `DATA_DIR` yourself. Back up with rsync or your usual backup tool.
 
 ---
 
@@ -234,12 +243,14 @@ Survives `docker compose down`. Removed only if you run **`destructive-recreate.
 
 Replaces `x_rsyslog`. Self-contained module that handles the full local-log-suppression + central-forwarding stack in one place:
 
-| What | How |
-|---|---|
-| journald | Drop-in sets `Storage=none` + `ForwardToSyslog=yes` — no disk or RAM journal, everything goes to rsyslog |
-| rsyslog | `49-syslog-forward.conf` forwards `*.*` to LibreNMS over TCP then `& stop` — nothing written to `/var/log/` |
-| Logrotate | Not managed — nothing to rotate |
-| Legacy cleanup | Removes `99-syslog-forward.conf` if present from older versions |
+
+| What           | How                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| journald       | Drop-in sets `Storage=none` + `ForwardToSyslog=yes` — no disk or RAM journal, everything goes to rsyslog    |
+| rsyslog        | `49-syslog-forward.conf` forwards `*.*` to LibreNMS over TCP then `& stop` — nothing written to `/var/log/` |
+| Logrotate      | Not managed — nothing to rotate                                                                             |
+| Legacy cleanup | Removes `99-syslog-forward.conf` if present from older versions                                             |
+
 
 ### Install
 
@@ -293,6 +304,7 @@ apt install snmpd
 ```
 
 Minimal `/etc/snmp/snmpd.conf`:
+
 ```
 rocommunity public
 # Expose CPU, memory, disk, swap, I/O via UCD-SNMP-MIB
@@ -330,13 +342,15 @@ This alerts if the port stops accepting connections, independently of SNMP.
 
 ## Replacing NMIS9
 
-| NMIS9 function              | LibreNMS equivalent                          |
-|-----------------------------|----------------------------------------------|
-| SNMP polling (all metrics)  | Built-in poller — same MIBs, same data       |
-| Auto-discovery              | Subnet sweep via `$config['nets']`           |
-| Interface graphs            | Auto-generated per device                   |
-| Host resource graphs        | CPU, mem, disk, swap, load — all built-in    |
-| Syslog                      | syslog-ng sidecar on port 514               |
-| Availability / alerting     | LibreNMS alerting (configure after setup)   |
+
+| NMIS9 function             | LibreNMS equivalent                       |
+| -------------------------- | ----------------------------------------- |
+| SNMP polling (all metrics) | Built-in poller — same MIBs, same data    |
+| Auto-discovery             | Subnet sweep via `$config['nets']`        |
+| Interface graphs           | Auto-generated per device                 |
+| Host resource graphs       | CPU, mem, disk, swap, load — all built-in |
+| Syslog                     | syslog-ng sidecar on port 514             |
+| Availability / alerting    | LibreNMS alerting (configure after setup) |
+
 
 NMIS9 can be switched off once LibreNMS has completed its first discovery sweep and you've verified devices are appearing.

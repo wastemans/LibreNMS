@@ -13,14 +13,34 @@ DB="${DB_CONTAINER:-librenms-db}"
 lnms()   { docker exec -u librenms "$LIBRENMS" lnms "$@"; }
 db_sql() { docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" "$DB_NAME" -e "$1"; }
 
-# LibreNMS often needs more than 60s on first boot (migrations). Wait until the app answers.
-echo "Waiting for LibreNMS (lnms) to be ready..."
+# config:get nets does NOT prove MySQL is up (file/config only). Wait for DB, then Laravel+DB.
+mariadb_up() {
+  docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" -e "SELECT 1" >/dev/null 2>&1
+}
+
+# Same DB path as user:add (MySQL from Laravel), not file-only config.
+lnms_db_up() {
+  docker exec -u librenms "$LIBRENMS" php /opt/librenms/artisan migrate:status >/dev/null 2>&1
+}
+
+echo "Waiting for MariaDB..."
 i=0
 max=600
-while ! lnms config:get nets >/dev/null 2>&1; do
+while ! mariadb_up; do
   i=$((i + 5))
   if [ "$i" -ge "$max" ]; then
-    echo "Timed out after ${max}s — check: docker logs -f librenms" >&2
+    echo "Timed out — check: docker logs -f ${DB}" >&2
+    exit 1
+  fi
+  sleep 5
+done
+
+echo "Waiting for LibreNMS (database connection + migrations)..."
+i=0
+while ! lnms_db_up; do
+  i=$((i + 5))
+  if [ "$i" -ge "$max" ]; then
+    echo "Timed out — check: docker logs -f ${LIBRENMS}" >&2
     exit 1
   fi
   sleep 5

@@ -133,6 +133,7 @@ services:
     container_name: librenms-scan
     restart: "no"
     depends_on:
+      - db
       - librenms
     environment:
       LNMS_ADMIN_USER: ${LNMS_ADMIN_USER}
