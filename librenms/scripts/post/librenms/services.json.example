@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "description": "TCP service checks — copy to services.json (gitignored) and replace with your hostnames.",
+    "host_path": "librenms/scripts/post/librenms/services.json (mounted at /data/init-scripts/services.json)",
+    "import_command": "docker exec -e LNMS_API_TOKEN=$LNMS_API_TOKEN -e LNMS_URL=http://127.0.0.1:8000 librenms php /data/init-scripts/post_librenms_import_services.php",
+    "notes": [
+      "device must match LibreNMS hostname (see devices table), not necessarily the IP in param.",
+      "192.0.2.0/24 is TEST-NET-1 (documentation only) — replace with your network.",
+      "Re-running import skips existing service desc per device."
+    ],
+    "scan_command": "sudo nmap -sT -Pn -p1-10000 -T4 --open -n -oG - 192.0.2.0/24 | grep 'Ports:'"
+  },
+  "devices": [
+    {
+      "_comment": "Example — use hostname as in LibreNMS Devices",
+      "device": "puppet.example.invalid",
+      "services": [
+        { "type": "tcp", "desc": "Puppet 8140", "param": "-H 192.0.2.10 -p 8140" }
+      ]
+    },
+    {
+      "_comment": "Second host",
+      "device": "app.example.invalid",
+      "services": [
+        { "type": "tcp", "desc": "HTTP 80", "param": "-H 192.0.2.11 -p 80" }
+      ]
+    }
+  ]
+}
