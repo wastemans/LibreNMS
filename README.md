@@ -161,6 +161,7 @@ docker exec -u librenms librenms lnms user:add --password=NEWPASSWORD --role=adm
 ### First-time setup in the UI
 
 1. **Validate**: Admin > Validate Install — fix any warnings shown
+   - The stack uses **`CACHE_DRIVER=redis`** and **`SESSION_DRIVER=redis`** (names from the [official LibreNMS Docker image](https://github.com/librenms/docker) — not `CACHE_STORE`). **`APP_URL`** must be the exact HTTPS URL you use (e.g. `https://lnms.i`). After changing compose or `.env`, recreate the `librenms` container so `/opt/librenms/.env` is regenerated.
 2. **Devices**: Once discovery subnets are set in `config.php`, run discovery manually first time: Admin > Discovery > Run Now (or wait up to 6h for the cron)
 3. **Syslog**: Devices > Syslog — syslog entries appear here once nodes start forwarding
 
