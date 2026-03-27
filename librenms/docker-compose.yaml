@@ -1,6 +1,6 @@
 # Variables are loaded from .env (gitignored) in this directory — Docker Compose
 # substitutes ${VAR} here. Each service only receives env vars listed under it.
-# See README.md: "What each container does" and "Where environment variables come from".
+# See README.md, section "LibreNMS Stack".
 #
 # Persistent data lives at DATA_DIR (set in .env, default /opt/monitor_stack).
 # Use scripts/utility/ helpers to manage the stack lifecycle.

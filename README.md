@@ -44,227 +44,189 @@ apt update && apt install -y curl docker-compose && curl -fsSL https://get.docke
 
 ## LibreNMS Stack
 
-### Before starting
+Everything lives under `librenms/`. Compose file: `librenms/docker-compose.yaml`. Config template: `librenms/.env.example` → copy to **`librenms/.env`** (gitignored).
 
-**0. Create your `.env` file** from the example:
+### Architecture
+
+All services use **host networking**: they talk on `127.0.0.1` like normal processes on the VM. Data is stored on the host at **`DATA_DIR`** (bind mounts to `DATA_DIR/db` and `DATA_DIR/librenms`), not as anonymous Docker volumes.
+
+```mermaid
+flowchart LR
+  subgraph host["VM (host network)"]
+    nginx["nginx :443/:80"]
+    app["librenms :8000"]
+    db["MariaDB"]
+    redis["Redis"]
+    disp["dispatcher"]
+    slog["syslog-ng :514"]
+  end
+  browser["Browser"] --> nginx --> app
+  app --> db
+  app --> redis
+  disp --> db
+  disp --> redis
+  scan["scan (one-shot)"] -. "docker exec" .-> app
+  scan -.-> db
+```
+
+**Roles in one sentence each**
+
+| Service | Container | Always on? | Does |
+|---------|-----------|------------|------|
+| `db` | `librenms-db` | Yes | MariaDB; files under `DATA_DIR/db`. |
+| `redis` | `librenms-redis` | Yes | Cache + sessions for LibreNMS. |
+| `librenms` | `librenms` | Yes | Web app and CLI; listens **127.0.0.1:8000**. |
+| `dispatcher` | `librenms-dispatcher` | Yes | Poll/discovery queue worker. |
+| `syslogng` | `librenms-syslogng` | Yes | Syslog TCP **514** on the host. |
+| `nginx` | `librenms-nginx` | Yes | TLS on **443**, HTTP→HTTPS on **80**, proxy to :8000. |
+| `scan` | `librenms-scan` | **No — exits** | Bootstrap: admin user, optional imports, `lnms scan`. Needs Docker socket. |
+
+Only **`scan`** is one-shot. To run bootstrap again after it exited: `docker compose up -d` from `librenms/` (starts a new `scan` task).
+
+### Environment variables (quick answers)
+
+| Question | Answer |
+|----------|--------|
+| Where are they defined? | **`librenms/.env`** |
+| Who reads `.env`? | **Docker Compose**, from the directory that contains `docker-compose.yaml` (run compose from **`librenms/`**). |
+| How do they get into containers? | Compose replaces **`${NAME}`** in `docker-compose.yaml`. Each service only gets variables listed under its **`environment:`** block. |
+| Does every service see every variable? | **No.** Example: `DISCOVERY_SUBNET` / `SNMP_COMMUNITY` are only on **`librenms`**. **`scan`** gets admin/DB/API flags; it runs `lnms` **inside** `librenms`, so scans use **`librenms`**’s env. |
+| What about `config.php`? | Mounted into **`librenms`**. It calls **`getenv()`** for URL, SNMP, subnets, syslog purge — those must be passed into the **`librenms`** container via compose. |
+
+If a value looks missing: set it in `.env`, confirm it appears under that service in `docker-compose.yaml`, then `docker compose up -d` (recreate containers).
+
+### Configure `.env`
 
 ```bash
 cp librenms/.env.example librenms/.env
 ```
 
-Then edit `librenms/.env` with your actual values. This file is gitignored — never commit it.
+Edit at least: `DATA_DIR`, `TZ`, `DNS_SERVER`, `APP_URL`, DB fields, `SNMP_COMMUNITY`, `DISCOVERY_SUBNET`, `LNMS_ADMIN_USER`, `LNMS_ADMIN_PASS`. Optional: `LNMS_API_TOKEN` (from `openssl rand -hex 16`) plus `IMPORT_ALERT_COLLECTION` / `IMPORT_SERVICES` — see `.env.example` comments.
 
-**1. Set your timezone** in `.env`:
-```
-TZ=Region/City
-```
+### Lifecycle scripts
 
-**2. Set the external URL** in `.env`:
-```
-APP_URL=http://your-host
-```
+In `librenms/scripts/utility/` (run from anywhere; scripts `cd` to `librenms/`):
 
-**3. Set your SNMP community and discovery subnet** in `.env`:
-```
-SNMP_COMMUNITY=your-community
-DISCOVERY_SUBNET=x.x.x.0/24
-```
+| Script | Effect |
+|--------|--------|
+| `build-stack.sh` | Build, `up -d` |
+| `restart-stack.sh` | `down`, `up -d` (data kept) |
+| `upgrade-stack.sh` | Pull/rebuild/restart (data kept) |
+| `destructive-recreate.sh` | **Deletes `DATA_DIR` data**, rebuild |
+| `destroy-stack.sh` | **Deletes data**, stop, no rebuild |
 
-**4. Admin login and alert collection import** (bootstrap reads these on every `docker-compose up`):
-
-```
-LNMS_ADMIN_USER=admin
-LNMS_ADMIN_PASS=your-secure-password
-```
-
-To load **all** bundled alert rules on first boot (same definitions as *Add rule from collection*), generate a hex API token and put it in `.env` (do not use shell `$(...)` inside `.env` — paste the value only):
-
-```bash
-openssl rand -hex 16
-```
-
-```
-LNMS_API_TOKEN=paste_the_32_hex_chars_here
-IMPORT_ALERT_COLLECTION=1
-```
-
-Leave `LNMS_API_TOKEN` empty to skip rule import. Set `IMPORT_ALERT_COLLECTION=0` to disable even when a token is set.
-
-### What each container does
-
-All services are defined in `librenms/docker-compose.yaml`. They use **`network_mode: host`**, so they share the VM’s network stack (no Docker bridge between them). Persistent data lives under `DATA_DIR` in `.env` (default `/opt/monitor_stack`).
-
-| Service (compose name) | Container name | Keeps running? | Role |
-|------------------------|----------------|----------------|------|
-| `db` | `librenms-db` | Yes (`restart: unless-stopped`) | MariaDB — LibreNMS database files in `DATA_DIR/db`. |
-| `redis` | `librenms-redis` | Yes | Redis — cache and sessions for LibreNMS. |
-| `librenms` | `librenms` | Yes | Main LibreNMS app (PHP, poller UI on **127.0.0.1:8000**). Reads SNMP/discovery settings from env via `config.php`. |
-| `dispatcher` | `librenms-dispatcher` | Yes | Dispatcher worker — job queue for polling/discovery (sidecar). |
-| `syslogng` | `librenms-syslogng` | Yes | Syslog receiver — **514/tcp** on the host. |
-| `nginx` | `librenms-nginx` | Yes | HTTPS front — **80** redirect, **443** TLS proxy to `127.0.0.1:8000`. |
-| `scan` | `librenms-scan` | **No — runs once** (`restart: "no"`) | Bootstrap only: creates admin user, optional alert/service imports, then **`lnms scan`**. Uses the Docker socket to `docker exec` into `librenms` and `librenms-db`. Exits when done; does not stay running. |
-
-After `docker compose up -d`, the **`scan`** container is the only one that is **one-shot**. Everything else is a long-running daemon. If you change code or `.env` and need bootstrap steps again, run `docker compose up -d` (Compose will start a new `scan` task if the previous one exited).
-
-### Where environment variables come from
-
-1. **File:** `librenms/.env` (create from `librenms/.env.example`). This file is **gitignored**.
-2. **Who reads it:** **Docker Compose** reads `.env` from the **same directory as `docker-compose.yaml`** when you run `docker compose` / `docker-compose` from `librenms/` (as the utility scripts do).
-3. **How it works:** Compose substitutes `${VAR_NAME}` in `docker-compose.yaml` when parsing the file. Each service only receives variables you list under that service’s `environment:` block (or `env_file:` if you added one — this stack does not use `env_file` globally).
-4. **Not every container sees every variable.** For example, `DISCOVERY_SUBNET`, `SNMP_COMMUNITY`, and `SYSLOG_PURGE_DAYS` are passed only to the **`librenms`** service. The **`scan`** service gets admin/API/import flags only — it runs `lnms` *inside* `librenms` via `docker exec`, so discovery still uses the **`librenms`** container environment when you run `lnms scan` there.
-5. **`config.php`** (mounted into `librenms`) reads **`getenv(...)`** at runtime for `APP_URL`, `SNMP_COMMUNITY`, `DISCOVERY_SUBNET`, `SYSLOG_PURGE_DAYS`. Those must be in the **`librenms`** container environment (set in compose from `.env`).
-
-If something “does not see” a value, check: (a) it is set in `librenms/.env`, (b) it appears under `environment:` for that service in `docker-compose.yaml`, (c) you recreated the container after editing `.env` (`docker compose up -d`).
-
-### Stack management
-
-All lifecycle operations are in `librenms/scripts/utility/`. Run them from anywhere — they navigate to the right directory automatically.
-
-| Script | What it does |
-|---|---|
-| `build-stack.sh` | Build images and start all containers |
-| `restart-stack.sh` | Stop and restart — data preserved |
-| `upgrade-stack.sh` | Pull latest images, rebuild, restart — data preserved |
-| `destructive-recreate.sh` | **Wipes all data**, then rebuilds and starts |
-| `destroy-stack.sh` | **Wipes all data** and stops — does not rebuild |
-
-### Start
+### Start and logs
 
 ```bash
 cd ~/projects/LibreNMS/librenms
 ./scripts/utility/build-stack.sh
-```
-
-LibreNMS takes ~2 minutes to fully initialise on first boot (DB migrations run). Watch it:
-
-```bash
 docker logs -f librenms
-```
-
-### Verify subnet config after startup
-
-`lnms config:get` shows the **merged** config (anything saved in the web UI lives in the DB and overrides `config.php`). If subnets or SNMP community do not match `.env`, clear or fix those entries under **Settings** in the UI.
-
-Confirm `DISCOVERY_SUBNET` from `.env` shows up as separate CIDRs:
-
-```bash
-docker exec -u librenms librenms lnms config:get nets
-```
-
-Expected output (example for two subnets):
-
-```
-["10.1.1.0\/24","10.2.0.0\/16"]
-```
-
-### Manual scan
-
-The `scan` bootstrap container starts with the stack, waits until LibreNMS responds to `lnms` (up to 10 minutes on a slow first boot), then creates the admin user, runs optional imports, and **`lnms scan`**, then exits. To trigger a scan manually at any time:
-
-```bash
-docker exec -u librenms librenms lnms scan
-```
-
-To see what the scan is hitting and why devices are accepted or skipped:
-
-```bash
-docker exec -u librenms librenms lnms scan -v
-```
-
-**If the automatic first scan never seems to run:** check the one-shot bootstrap logs — errors appear there, not in `librenms`:
-
-```bash
 docker logs librenms-scan
 ```
 
-Typical causes: LibreNMS still migrating (wait and re-run compose, or run `lnms scan` manually); wrong `DISCOVERY_SUBNET` or SNMP community (verify with `lnms config:get nets` and **Settings** in the UI); or firewall blocking SNMP between this host and targets.
+First boot can take a few minutes (DB init, migrations).
 
-### Adding ping-only devices (no SNMP)
+### Command cheat sheet
 
-Devices that don't run SNMP (e.g. unmanaged or consumer switches) won't be auto-discovered by the subnet scan. Add them manually:
+Run **`lnms`** as user **`librenms`** inside the app container. Replace IPs and communities with yours.
 
-```bash
-docker exec -u librenms librenms lnms device:add --ping-fallback 10.0.1.10
-docker exec -u librenms librenms lnms device:add --ping-fallback 10.20.0.1
-```
-
-LibreNMS will ping them on every 5-minute poll cycle and graph availability and round-trip latency. To set a friendly display name, go to **Device > Edit > Display Name** in the web UI.
-
-If SNMP is later enabled on any of these devices, edit the device in the UI to add SNMP credentials — full interface and traffic graphs will start building automatically from that point.
-
-### Web UI
-
-`https://your-host` — the admin account is created automatically by the bootstrap container once LibreNMS is ready (see `docker logs librenms-scan`). Use the credentials from `LNMS_ADMIN_USER` / `LNMS_ADMIN_PASS` in `.env`.
-
-### Reset or change password
-
-The bootstrap re-runs `user:add` on every `docker-compose up`, so updating `LNMS_ADMIN_PASS` in `.env` and restarting the stack resets the password automatically.
-
-To reset manually without restarting:
+**Discovery and devices**
 
 ```bash
-docker exec -u librenms librenms lnms user:add --password=NEWPASSWORD --role=admin USERNAME
+docker exec -u librenms librenms lnms scan
+docker exec -u librenms librenms lnms scan -v
+docker exec -u librenms librenms lnms network:scan --network 10.0.0.0/24
+docker exec -u librenms librenms lnms device:discover HOSTNAME
+docker exec -u librenms librenms lnms device:add -2 -c COMMUNITY IP
+docker exec -u librenms librenms lnms device:add --ping-fallback IP
+docker exec -u librenms librenms lnms device:add --ping-fallback --force-add IP
+docker exec -u librenms librenms lnms list
 ```
 
-### First-time setup in the UI
+**Config (UI/DB can override file-based values)**
 
-1. **Validate**: Admin > Validate Install — fix any warnings shown
-   - The stack uses **`CACHE_DRIVER=redis`** and **`SESSION_DRIVER=redis`** (names from the [official LibreNMS Docker image](https://github.com/librenms/docker) — not `CACHE_STORE`). **`APP_URL`** must be the exact HTTPS URL you use (e.g. `https://lnms.i`). After changing compose or `.env`, recreate the `librenms` container so `/opt/librenms/.env` is regenerated.
-2. **Devices**: Once discovery subnets are set in `config.php`, run discovery manually first time: Admin > Discovery > Run Now (or wait up to 6h for the cron)
-3. **Syslog**: Devices > Syslog — syslog entries appear here once nodes start forwarding
+```bash
+docker exec -u librenms librenms lnms config:get nets
+docker exec -u librenms librenms lnms config:get snmp.community
+```
 
-### Alert rules (full collection)
+**Users**
 
-On bootstrap, if `LNMS_API_TOKEN` is set and `IMPORT_ALERT_COLLECTION=1`, the scan container registers that token in `api_tokens` and runs `librenms/scripts/import-alert-collection.php` against `http://127.0.0.1:8000` (same JSON as **Alerts > Alert Rules > Add rule from collection**). Existing rule names **SKIP** (HTTP non-2xx); new names are added enabled. Irrelevant rules never fire on devices that lack matching sensors/OIDs.
+```bash
+docker exec -u librenms librenms lnms user:add --password='PASSWORD' --role=admin USERNAME
+```
 
-Manual re-run (e.g. after upgrading the LibreNMS image with a newer `alert_rules.json`):
+**Stack / debugging**
 
 ```bash
 cd ~/projects/LibreNMS/librenms
-export LNMS_API_TOKEN='same value as in .env'
+docker compose ps
+docker logs -f librenms-nginx
+docker logs librenms-syslogng
+docker compose up -d --force-recreate scan
+docker exec librenms env | grep -E 'SNMP|DISCOVERY'
+docker exec -u librenms librenms env | grep -E 'SNMP|DISCOVERY'
+```
+
+**Connectivity from inside `librenms` (host network = same as VM)**
+
+```bash
+docker exec librenms ping -c 3 IP
+docker exec librenms nc -vzw2 IP 22
+docker exec librenms nc -vzuw2 IP 161
+docker exec librenms snmpget -v2c -c COMMUNITY IP sysName.0
+```
+
+**Database (password from `.env`, never commit it)**
+
+```bash
+docker exec -e MYSQL_PWD='YOUR_DB_PASSWORD' librenms-db mariadb -u librenms librenms -e "SHOW TABLES LIKE '%alert%';"
+```
+
+### When something breaks
+
+- **Bootstrap / first login / auto-scan:** read **`docker logs librenms-scan`**, not only `librenms`.
+- **`SQLSTATE ... Connection refused` to MySQL during bootstrap:** MariaDB was not accepting connections yet, or `librenms` could not reach `127.0.0.1:3306`. Check **`docker logs librenms-db`**, wait, then recreate bootstrap: `docker compose up -d --force-recreate scan` from `librenms/`.
+- **`lnms config:get nets` works but DB commands fail:** `config:get` can reflect file config before the app has a stable DB session; treat **user:add / scan** errors as “DB or migrations not ready yet” and retry after DB is up.
+- **Web UI asks to create a user:** bootstrap did not finish; use **`lnms user:add`** above or fix `librenms-scan` errors and re-run `scan`.
+- **Subnets or SNMP wrong:** check **`lnms config:get nets`** and LibreNMS **Settings** (DB overrides `config.php`).
+
+### Ping-only devices (no SNMP)
+
+```bash
+docker exec -u librenms librenms lnms device:add --ping-fallback 10.0.1.10
+```
+
+### Web UI and validate
+
+Use **`APP_URL`** as the URL you type in the browser. **nginx** serves **443** (self-signed cert generated at container start) and redirects **80** to HTTPS; LibreNMS itself stays on **127.0.0.1:8000**. After changing `.env` or compose, recreate **`librenms`** so its generated env stays consistent.
+
+Admin > **Validate Install**. This stack uses **`CACHE_DRIVER=redis`** and **`SESSION_DRIVER=redis`** (see [official LibreNMS Docker image](https://github.com/librenms/docker)).
+
+### Alert rule import (optional)
+
+If `LNMS_API_TOKEN` is set and `IMPORT_ALERT_COLLECTION=1`, bootstrap imports the bundled collection (same idea as **Alerts > Add rule from collection**). Manual re-run:
+
+```bash
+cd ~/projects/LibreNMS/librenms
+export LNMS_API_TOKEN='same as .env'
 ./scripts/post/librenms/post_librenms_import_alerts.sh
 ```
 
-### HTTPS via nginx reverse proxy
-
-An nginx container is included in the stack. It listens on `443` and proxies to LibreNMS on `127.0.0.1:8000`. Port `80` redirects to HTTPS.
-
-A throwaway self-signed cert is generated automatically inside the container at startup — no cert management needed.
-
-Set `APP_URL` in `.env` to use https:
-```
-APP_URL=https://your-host
-```
-
-Port `8000` remains accessible for direct internal access if needed.
-
 ### Dashboards
 
-LibreNMS ships with no default dashboards. Build one in the UI (Dashboard > New Dashboard) and add widgets:
+No default dashboard. Create one under **Dashboard > New Dashboard** (e.g. Availability Map, Device Summary, Alerts, Syslog, Top Interfaces). Default for everyone: **Settings > WebUI Settings > Dashboard Settings**.
 
-| Widget | What it shows |
-|---|---|
-| Availability Map | All devices as green/red tiles |
-| Device Summary | Up/down/ignored counts |
-| Alerts | Active alert list |
-| Syslog | Live syslog feed |
-| Top Interfaces | Busiest ports by traffic |
+### Data on disk
 
-Set it as the default for all users: **Settings > WebUI Settings > Dashboard Settings**.
-
-Dashboards live in the DB volume and survive restarts. They are lost on `docker-compose down -v`.
-
-### Persistence
-
-All data is stored at `DATA_DIR` (set in `.env`, default `/opt/monitor_stack`). This is a plain host directory — Docker has no control over it. It survives container restarts, image rebuilds, and `docker-compose down`. Only `destructive-recreate.sh` and `destroy-stack.sh` will remove it.
+All persistent state is under **`DATA_DIR`** (default `/opt/monitor_stack`):
 
 ```
-/opt/monitor_stack/
-  db/        ← MariaDB files
-  librenms/  ← RRD graphs, discovered device data, logs
+DATA_DIR/db/       — MariaDB
+DATA_DIR/librenms/ — RRD, LibreNMS data
 ```
 
-Back it up with rsync or any standard file backup. To start from scratch use `destructive-recreate.sh`.
+Survives `docker compose down`. Removed only if you run **`destructive-recreate.sh`** / **`destroy-stack.sh`** or delete `DATA_DIR` yourself. Back up with rsync or your usual backup tool.
 
 ---
 
