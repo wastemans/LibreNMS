@@ -70,6 +70,25 @@ SNMP_COMMUNITY=your-community
 DISCOVERY_SUBNET=x.x.x.0/24
 ```
 
+**4. Admin login and alert collection import** (bootstrap reads these on every `docker-compose up`):
+
+```
+LNMS_ADMIN_USER=admin
+LNMS_ADMIN_PASS=your-secure-password
+```
+
+To load **all** bundled alert rules on first boot (same definitions as *Add rule from collection*), generate a hex API token and put it in `.env` (do not use shell `$(...)` inside `.env` — paste the value only):
+
+```bash
+openssl rand -hex 16
+```
+
+```
+LNMS_API_TOKEN=paste_the_32_hex_chars_here
+IMPORT_ALERT_COLLECTION=1
+```
+
+Leave `LNMS_API_TOKEN` empty to skip rule import. Set `IMPORT_ALERT_COLLECTION=0` to disable even when a token is set.
 
 ### Start
 
@@ -100,7 +119,7 @@ Expected output (example for two subnets):
 
 ### Manual scan
 
-The `scan` bootstrap container fires automatically 2 minutes after `docker-compose up -d` and exits. To trigger a scan manually at any time:
+The `scan` bootstrap container fires automatically ~60 seconds after `docker-compose up -d` and exits. To trigger a scan manually at any time:
 
 ```bash
 docker exec -u librenms librenms lnms scan
@@ -144,6 +163,18 @@ docker exec -u librenms librenms lnms user:add --password=NEWPASSWORD --role=adm
 1. **Validate**: Admin > Validate Install — fix any warnings shown
 2. **Devices**: Once discovery subnets are set in `config.php`, run discovery manually first time: Admin > Discovery > Run Now (or wait up to 6h for the cron)
 3. **Syslog**: Devices > Syslog — syslog entries appear here once nodes start forwarding
+
+### Alert rules (full collection)
+
+On bootstrap, if `LNMS_API_TOKEN` is set and `IMPORT_ALERT_COLLECTION=1`, the scan container registers that token in `api_tokens` and runs `librenms/scripts/import-alert-collection.php` against `http://127.0.0.1:8000` (same JSON as **Alerts > Alert Rules > Add rule from collection**). Existing rule names **SKIP** (HTTP non-2xx); new names are added enabled. Irrelevant rules never fire on devices that lack matching sensors/OIDs.
+
+Manual re-run (e.g. after upgrading the LibreNMS image with a newer `alert_rules.json`):
+
+```bash
+cd ~/projects/LibreNMS/librenms
+export LNMS_API_TOKEN='same value as in .env'
+./scripts/import-alert-collection.sh
+```
 
 ### HTTPS via nginx reverse proxy
 

@@ -53,6 +53,7 @@ services:
     volumes:
       - librenms_data:/data
       - ./config.php:/data/config/config.php:ro
+      - ./scripts/import-alert-collection.php:/data/init-scripts/import-alert-collection.php:ro
 
   dispatcher:
     image: librenms/librenms:latest
@@ -121,10 +122,15 @@ services:
     environment:
       LNMS_ADMIN_USER: ${LNMS_ADMIN_USER}
       LNMS_ADMIN_PASS: ${LNMS_ADMIN_PASS}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      LNMS_API_TOKEN: ${LNMS_API_TOKEN}
+      IMPORT_ALERT_COLLECTION: ${IMPORT_ALERT_COLLECTION:-1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    # Waits 60s for DB migrations, creates/updates admin user, then sweeps subnets.
-    # Runs once per "docker-compose up". Safe to re-run - user:add updates if exists.
+    # Waits 60s for DB migrations, creates/updates admin user, imports alert collection
+    # (optional), then subnet scan. Runs once per "docker-compose up".
     command:
       - /bin/sh
       - -c
@@ -132,6 +138,14 @@ services:
         sleep 60
         docker exec -u librenms librenms lnms user:add \
           --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER"
+        if [ "${IMPORT_ALERT_COLLECTION:-1}" = "1" ] && [ -n "${LNMS_API_TOKEN:-}" ]; then
+          docker exec -e MYSQL_PWD="$DB_PASSWORD" librenms-db mariadb -u"$DB_USER" "$DB_NAME" \
+            -e "DELETE FROM api_tokens WHERE description = 'monitor_stack bootstrap';"
+          docker exec -e MYSQL_PWD="$DB_PASSWORD" librenms-db mariadb -u"$DB_USER" "$DB_NAME" \
+            -e "INSERT INTO api_tokens (user_id, token_hash, description, disabled) SELECT user_id, '${LNMS_API_TOKEN}', 'monitor_stack bootstrap', 0 FROM users WHERE username='${LNMS_ADMIN_USER}' LIMIT 1;"
+          docker exec -e LNMS_API_TOKEN="$LNMS_API_TOKEN" -e LNMS_URL=http://127.0.0.1:8000 \
+            librenms php /data/init-scripts/import-alert-collection.php
+        fi
         docker exec -u librenms librenms lnms scan
 
 volumes:
