@@ -220,7 +220,7 @@ Dashboards live in the DB volume and survive restarts. They are lost on `docker-
 
 ### Persistence
 
-All data is stored at `DATA_DIR` (set in `.env`, default `/opt/monitor_stack`). This is a plain host directory — Docker has no control over it. It survives container restarts, image rebuilds, and `docker compose down`. Only `destructive-recreate.sh` and `destroy-stack.sh` will remove it.
+All data is stored at `DATA_DIR` (set in `.env`, default `/opt/monitor_stack`). This is a plain host directory — Docker has no control over it. It survives container restarts, image rebuilds, and `docker-compose down`. Only `destructive-recreate.sh` and `destroy-stack.sh` will remove it.
 
 ```
 /opt/monitor_stack/
