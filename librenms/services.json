@@ -1,0 +1,80 @@
+{
+  "_meta": {
+    "description": "LibreNMS TCP service check definitions. Imported by post_librenms_import_services.php.",
+    "import_command": "docker exec -e LNMS_API_TOKEN=$LNMS_API_TOKEN -e LNMS_URL=http://127.0.0.1:8000 librenms php /data/init-scripts/post_librenms_import_services.php",
+    "notes": [
+      "Devices must already exist in LibreNMS (discovery must have run first).",
+      "Re-running is safe — existing service names on a device are skipped.",
+      "All checks use type 'tcp' (check_tcp) — requires nagios-plugins-tcp in Dockerfile.",
+      "SSH (22) excluded everywhere — device up/down is handled by SNMP polling.",
+      "Omitted: 10.1.1.25, 10.1.1.200 (SSH only), 10.1.1.31/32 (SNMP-managed),",
+      "         10.1.1.60 (this monitor host)."
+    ],
+    "scan_command": "sudo nmap -sT -Pn -p1-10000 -T4 --open -n --system-dns --max-retries 1 --host-timeout 30s -oG - 10.1.1.0/24 | grep 'Ports:'"
+  },
+  "devices": [
+    {
+      "_comment": "10.1.1.4 — iDrac",
+      "device": "10.1.1.4",
+      "services": [
+        { "type": "tcp", "desc": "HTTP 80",      "param": "-H 10.1.1.4 -p 80" },
+        { "type": "tcp", "desc": "HTTPS 443",    "param": "-H 10.1.1.4 -p 443" },
+        { "type": "tcp", "desc": "VNC-HTTP 5800","param": "-H 10.1.1.4 -p 5800" },
+        { "type": "tcp", "desc": "VNC 5900",     "param": "-H 10.1.1.4 -p 5900" }
+      ]
+    },
+    {
+      "_comment": "10.1.1.5 — Proxmox node",
+      "device": "10.1.1.5",
+      "services": [
+        { "type": "tcp", "desc": "Proxmox UI 8006",   "param": "-H 10.1.1.5 -p 8006" },
+        { "type": "tcp", "desc": "Squid proxy 3128",  "param": "-H 10.1.1.5 -p 3128" },
+        { "type": "tcp", "desc": "SMTP 25",           "param": "-H 10.1.1.5 -p 25" },
+        { "type": "tcp", "desc": "NFS 2049",          "param": "-H 10.1.1.5 -p 2049" }
+      ]
+    },
+    {
+      "_comment": "10.1.1.7 — Proxmox node",
+      "device": "10.1.1.7",
+      "services": [
+        { "type": "tcp", "desc": "Proxmox UI 8006",   "param": "-H 10.1.1.7 -p 8006" },
+        { "type": "tcp", "desc": "Squid proxy 3128",  "param": "-H 10.1.1.7 -p 3128" },
+        { "type": "tcp", "desc": "SMTP 25",           "param": "-H 10.1.1.7 -p 25" }
+      ]
+    },
+    {
+      "_comment": "10.1.1.8 — Puppet server",
+      "device": "10.1.1.8",
+      "services": [
+        { "type": "tcp", "desc": "Puppet 8140", "param": "-H 10.1.1.8 -p 8140" }
+      ]
+    },
+    {
+      "_comment": "10.1.1.20 — application server (also 10.50.50.20, same host)",
+      "device": "10.1.1.20",
+      "services": [
+        { "type": "tcp", "desc": "DNS TCP 53",        "param": "-H 10.1.1.20 -p 53" },
+        { "type": "tcp", "desc": "HTTP 80",           "param": "-H 10.1.1.20 -p 80" },
+        { "type": "tcp", "desc": "Squid proxy 3128",  "param": "-H 10.1.1.20 -p 3128" },
+        { "type": "tcp", "desc": "HTTP-alt 8000",     "param": "-H 10.1.1.20 -p 8000" },
+        { "type": "tcp", "desc": "Port 8200",         "param": "-H 10.1.1.20 -p 8200" },
+        { "type": "tcp", "desc": "Port 6800",         "param": "-H 10.1.1.20 -p 6800" },
+        { "type": "tcp", "desc": "Port 7800",         "param": "-H 10.1.1.20 -p 7800" },
+        { "type": "tcp", "desc": "Port 9977",         "param": "-H 10.1.1.20 -p 9977" }
+      ]
+    },
+    {
+      "_comment": "10.50.50.20 — same box as 10.1.1.20, direct path (vs VPN). Port 8000 not exposed on this interface.",
+      "device": "10.50.50.20",
+      "services": [
+        { "type": "tcp", "desc": "DNS TCP 53",       "param": "-H 10.50.50.20 -p 53" },
+        { "type": "tcp", "desc": "HTTP 80",          "param": "-H 10.50.50.20 -p 80" },
+        { "type": "tcp", "desc": "Squid proxy 3128", "param": "-H 10.50.50.20 -p 3128" },
+        { "type": "tcp", "desc": "Port 8200",        "param": "-H 10.50.50.20 -p 8200" },
+        { "type": "tcp", "desc": "Port 6800",        "param": "-H 10.50.50.20 -p 6800" },
+        { "type": "tcp", "desc": "Port 7800",        "param": "-H 10.50.50.20 -p 7800" },
+        { "type": "tcp", "desc": "Port 9977",        "param": "-H 10.50.50.20 -p 9977" }
+      ]
+    },
+  ]
+}
