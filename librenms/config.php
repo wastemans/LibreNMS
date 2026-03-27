@@ -1,6 +1,5 @@
 <?php
-// LibreNMS custom config - loaded on every startup.
-// Sensitive values are read from environment variables set in .env via docker-compose.
+// Loaded from /opt/librenms/conf.d/config.php — values from compose environment.
 
 $appUrl = getenv('APP_URL') ?: '';
 if ($appUrl !== '') {
@@ -14,7 +13,5 @@ foreach (array_filter(explode(' ', getenv('DISCOVERY_SUBNET') ?: '10.0.0.0/24'))
 }
 
 $config['enable_syslog'] = 1;
-
 $config['ping_rrd'] = 1;
-
-$config['syslog_purge'] = (int)(getenv('SYSLOG_PURGE_DAYS') ?: 30);
+$config['syslog_purge'] = (int) (getenv('SYSLOG_PURGE_DAYS') ?: 30);

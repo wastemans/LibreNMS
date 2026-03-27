@@ -117,7 +117,9 @@ docker logs -f librenms
 
 ### Verify subnet config after startup
 
-Confirm `DISCOVERY_SUBNET` was parsed into separate entries (one line per subnet):
+`lnms config:get` shows the **merged** config (anything saved in the web UI lives in the DB and overrides `config.php`). If subnets or SNMP community do not match `.env`, clear or fix those entries under **Settings** in the UI.
+
+Confirm `DISCOVERY_SUBNET` from `.env` shows up as separate CIDRs:
 
 ```bash
 docker exec -u librenms librenms lnms config:get nets
