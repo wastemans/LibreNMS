@@ -1,6 +1,7 @@
 {
   "_meta": {
     "description": "LibreNMS TCP service check definitions. Imported by post_librenms_import_services.php.",
+    "host_path": "librenms/scripts/post/librenms/services.json (mounted with the rest of this folder at /data/init-scripts/)",
     "import_command": "docker exec -e LNMS_API_TOKEN=$LNMS_API_TOKEN -e LNMS_URL=http://127.0.0.1:8000 librenms php /data/init-scripts/post_librenms_import_services.php",
     "notes": [
       "Devices must already exist in LibreNMS (discovery must have run first).",
@@ -75,6 +76,6 @@
         { "type": "tcp", "desc": "Port 7800",        "param": "-H 10.50.50.20 -p 7800" },
         { "type": "tcp", "desc": "Port 9977",        "param": "-H 10.50.50.20 -p 9977" }
       ]
-    },
+    }
   ]
 }

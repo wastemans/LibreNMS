@@ -55,7 +55,7 @@ services:
     volumes:
       - ${DATA_DIR}/librenms:/data
       - ./config.php:/opt/librenms/conf.d/config.php:ro
-      - ./scripts/post/librenms/post_librenms_import_alerts.php:/data/init-scripts/post_librenms_import_alerts.php:ro
+      - ./scripts/post/librenms:/data/init-scripts:ro
 
   dispatcher:
     build: .
@@ -139,6 +139,7 @@ services:
       DB_NAME: ${DB_NAME}
       LNMS_API_TOKEN: ${LNMS_API_TOKEN}
       IMPORT_ALERT_COLLECTION: ${IMPORT_ALERT_COLLECTION:-1}
+      IMPORT_SERVICES: ${IMPORT_SERVICES:-1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./scripts:/scripts:ro

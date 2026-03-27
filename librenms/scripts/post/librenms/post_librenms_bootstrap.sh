@@ -5,7 +5,7 @@
 # Env (injected by the compose scan service):
 #   LNMS_ADMIN_USER, LNMS_ADMIN_PASS
 #   DB_USER, DB_PASSWORD, DB_NAME
-#   LNMS_API_TOKEN, IMPORT_ALERT_COLLECTION
+#   LNMS_API_TOKEN, IMPORT_ALERT_COLLECTION, IMPORT_SERVICES
 
 set -eu
 
@@ -32,3 +32,10 @@ fi
 
 lnms cache:clear
 lnms scan
+
+if [ "${IMPORT_SERVICES:-1}" = "1" ] && [ -n "${LNMS_API_TOKEN:-}" ]; then
+  docker exec \
+    -e LNMS_API_TOKEN="$LNMS_API_TOKEN" \
+    -e LNMS_URL=http://127.0.0.1:8000 \
+    "$LIBRENMS" php /data/init-scripts/post_librenms_import_services.php
+fi
