@@ -54,7 +54,7 @@ services:
       SYSLOG_PURGE_DAYS: ${SYSLOG_PURGE_DAYS}
     volumes:
       - ${DATA_DIR}/librenms:/data
-      - ./config.php:/data/config/config.php:ro
+      - ./config.php:/opt/librenms/conf.d/config.php:ro
       - ./scripts/post/librenms/post_librenms_import_alerts.php:/data/init-scripts/post_librenms_import_alerts.php:ro
 
   dispatcher:
