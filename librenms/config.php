@@ -2,6 +2,11 @@
 // LibreNMS custom config - loaded on every startup.
 // Sensitive values are read from environment variables set in .env via docker-compose.
 
+$appUrl = getenv('APP_URL') ?: '';
+if ($appUrl !== '') {
+    $config['base_url'] = rtrim($appUrl, '/');
+}
+
 $config['snmp']['community'] = [getenv('SNMP_COMMUNITY') ?: 'public'];
 
 foreach (array_filter(explode(' ', getenv('DISCOVERY_SUBNET') ?: '10.0.0.0/24')) as $subnet) {

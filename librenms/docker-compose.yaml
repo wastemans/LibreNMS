@@ -47,6 +47,8 @@ services:
       DB_NAME: ${DB_NAME}
       REDIS_HOST: 127.0.0.1
       APP_URL: ${APP_URL}
+      CACHE_STORE: redis
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-true}
       SNMP_COMMUNITY: ${SNMP_COMMUNITY}
       DISCOVERY_SUBNET: ${DISCOVERY_SUBNET}
       SYSLOG_PURGE_DAYS: ${SYSLOG_PURGE_DAYS}
@@ -74,6 +76,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
       REDIS_HOST: 127.0.0.1
+      APP_URL: ${APP_URL}
+      CACHE_STORE: redis
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-true}
       DISPATCHER_NODE_ID: dispatcher1
       SIDECAR_DISPATCHER: 1
     volumes:
@@ -97,6 +102,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
       REDIS_HOST: 127.0.0.1
+      APP_URL: ${APP_URL}
+      CACHE_STORE: redis
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-true}
       SIDECAR_SYSLOGNG: 1
     volumes:
       - librenms_data:/data
@@ -127,6 +135,7 @@ services:
       DB_NAME: ${DB_NAME}
       LNMS_API_TOKEN: ${LNMS_API_TOKEN}
       IMPORT_ALERT_COLLECTION: ${IMPORT_ALERT_COLLECTION:-1}
+      APP_URL: ${APP_URL}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     # Waits 60s for DB migrations, creates/updates admin user, imports alert collection
@@ -146,6 +155,10 @@ services:
           docker exec -e LNMS_API_TOKEN="$LNMS_API_TOKEN" -e LNMS_URL=http://127.0.0.1:8000 \
             librenms php /data/init-scripts/import-alert-collection.php
         fi
+        if [ -n "${APP_URL:-}" ]; then
+          docker exec -u librenms librenms lnms config:set base_url "$APP_URL"
+        fi
+        docker exec -u librenms librenms lnms config:cache
         docker exec -u librenms librenms lnms scan
 
 volumes:
