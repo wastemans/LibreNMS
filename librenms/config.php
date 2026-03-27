@@ -1,5 +1,5 @@
 <?php
-// Loaded from /opt/librenms/conf.d/config.php — values from compose environment.
+// Mounted at /data/config/config.php — the official image includes this path from /opt/librenms/config.php.
 
 $appUrl = getenv('APP_URL') ?: '';
 if ($appUrl !== '') {
