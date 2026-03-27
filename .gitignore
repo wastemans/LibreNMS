@@ -1,2 +1,3 @@
 # Real variable files - copy from .example and fill in your values
 librenms/.env
+.cursor

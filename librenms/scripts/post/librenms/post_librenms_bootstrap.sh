@@ -15,7 +15,19 @@ DB="${DB_CONTAINER:-librenms-db}"
 lnms()   { docker exec -u librenms "$LIBRENMS" lnms "$@"; }
 db_sql() { docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" "$DB_NAME" -e "$1"; }
 
-sleep 60
+# LibreNMS often needs more than 60s on first boot (migrations). Wait until the app answers.
+echo "Waiting for LibreNMS (lnms) to be ready..."
+i=0
+max=600
+while ! lnms config:get nets >/dev/null 2>&1; do
+  i=$((i + 5))
+  if [ "$i" -ge "$max" ]; then
+    echo "Timed out after ${max}s — check: docker logs -f librenms" >&2
+    exit 1
+  fi
+  sleep 5
+done
+echo "LibreNMS is ready."
 
 lnms user:add --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER"
 

@@ -90,6 +90,32 @@ IMPORT_ALERT_COLLECTION=1
 
 Leave `LNMS_API_TOKEN` empty to skip rule import. Set `IMPORT_ALERT_COLLECTION=0` to disable even when a token is set.
 
+### What each container does
+
+All services are defined in `librenms/docker-compose.yaml`. They use **`network_mode: host`**, so they share the VM’s network stack (no Docker bridge between them). Persistent data lives under `DATA_DIR` in `.env` (default `/opt/monitor_stack`).
+
+| Service (compose name) | Container name | Keeps running? | Role |
+|------------------------|----------------|----------------|------|
+| `db` | `librenms-db` | Yes (`restart: unless-stopped`) | MariaDB — LibreNMS database files in `DATA_DIR/db`. |
+| `redis` | `librenms-redis` | Yes | Redis — cache and sessions for LibreNMS. |
+| `librenms` | `librenms` | Yes | Main LibreNMS app (PHP, poller UI on **127.0.0.1:8000**). Reads SNMP/discovery settings from env via `config.php`. |
+| `dispatcher` | `librenms-dispatcher` | Yes | Dispatcher worker — job queue for polling/discovery (sidecar). |
+| `syslogng` | `librenms-syslogng` | Yes | Syslog receiver — **514/tcp** on the host. |
+| `nginx` | `librenms-nginx` | Yes | HTTPS front — **80** redirect, **443** TLS proxy to `127.0.0.1:8000`. |
+| `scan` | `librenms-scan` | **No — runs once** (`restart: "no"`) | Bootstrap only: creates admin user, optional alert/service imports, then **`lnms scan`**. Uses the Docker socket to `docker exec` into `librenms` and `librenms-db`. Exits when done; does not stay running. |
+
+After `docker compose up -d`, the **`scan`** container is the only one that is **one-shot**. Everything else is a long-running daemon. If you change code or `.env` and need bootstrap steps again, run `docker compose up -d` (Compose will start a new `scan` task if the previous one exited).
+
+### Where environment variables come from
+
+1. **File:** `librenms/.env` (create from `librenms/.env.example`). This file is **gitignored**.
+2. **Who reads it:** **Docker Compose** reads `.env` from the **same directory as `docker-compose.yaml`** when you run `docker compose` / `docker-compose` from `librenms/` (as the utility scripts do).
+3. **How it works:** Compose substitutes `${VAR_NAME}` in `docker-compose.yaml` when parsing the file. Each service only receives variables you list under that service’s `environment:` block (or `env_file:` if you added one — this stack does not use `env_file` globally).
+4. **Not every container sees every variable.** For example, `DISCOVERY_SUBNET`, `SNMP_COMMUNITY`, and `SYSLOG_PURGE_DAYS` are passed only to the **`librenms`** service. The **`scan`** service gets admin/API/import flags only — it runs `lnms` *inside* `librenms` via `docker exec`, so discovery still uses the **`librenms`** container environment when you run `lnms scan` there.
+5. **`config.php`** (mounted into `librenms`) reads **`getenv(...)`** at runtime for `APP_URL`, `SNMP_COMMUNITY`, `DISCOVERY_SUBNET`, `SYSLOG_PURGE_DAYS`. Those must be in the **`librenms`** container environment (set in compose from `.env`).
+
+If something “does not see” a value, check: (a) it is set in `librenms/.env`, (b) it appears under `environment:` for that service in `docker-compose.yaml`, (c) you recreated the container after editing `.env` (`docker compose up -d`).
+
 ### Stack management
 
 All lifecycle operations are in `librenms/scripts/utility/`. Run them from anywhere — they navigate to the right directory automatically.
@@ -133,7 +159,7 @@ Expected output (example for two subnets):
 
 ### Manual scan
 
-The `scan` bootstrap container fires automatically ~60 seconds after `docker-compose up -d` and exits. To trigger a scan manually at any time:
+The `scan` bootstrap container starts with the stack, waits until LibreNMS responds to `lnms` (up to 10 minutes on a slow first boot), then creates the admin user, runs optional imports, and **`lnms scan`**, then exits. To trigger a scan manually at any time:
 
 ```bash
 docker exec -u librenms librenms lnms scan
@@ -144,6 +170,14 @@ To see what the scan is hitting and why devices are accepted or skipped:
 ```bash
 docker exec -u librenms librenms lnms scan -v
 ```
+
+**If the automatic first scan never seems to run:** check the one-shot bootstrap logs — errors appear there, not in `librenms`:
+
+```bash
+docker logs librenms-scan
+```
+
+Typical causes: LibreNMS still migrating (wait and re-run compose, or run `lnms scan` manually); wrong `DISCOVERY_SUBNET` or SNMP community (verify with `lnms config:get nets` and **Settings** in the UI); or firewall blocking SNMP between this host and targets.
 
 ### Adding ping-only devices (no SNMP)
 
@@ -160,7 +194,7 @@ If SNMP is later enabled on any of these devices, edit the device in the UI to a
 
 ### Web UI
 
-`https://your-host` — the admin account is created automatically by the bootstrap container (60 seconds after `docker-compose up`). Use the credentials from `LNMS_ADMIN_USER` / `LNMS_ADMIN_PASS` in `.env`.
+`https://your-host` — the admin account is created automatically by the bootstrap container once LibreNMS is ready (see `docker logs librenms-scan`). Use the credentials from `LNMS_ADMIN_USER` / `LNMS_ADMIN_PASS` in `.env`.
 
 ### Reset or change password
 
