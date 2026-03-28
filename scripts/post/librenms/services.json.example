@@ -1,7 +1,7 @@
 {
   "_meta": {
     "description": "TCP service checks — copy to services.json (gitignored) and replace with your hostnames.",
-    "host_path": "librenms/scripts/post/librenms/services.json (mounted at /data/init-scripts/services.json)",
+    "host_path": "scripts/post/librenms/services.json (mounted at /data/init-scripts/services.json)",
     "import_command": "docker exec -e LNMS_API_TOKEN=$LNMS_API_TOKEN -e LNMS_URL=http://127.0.0.1:8000 librenms php /data/init-scripts/post_librenms_import_services.php",
     "notes": [
       "device must match LibreNMS hostname (see devices table), not necessarily the IP in param.",
@@ -15,14 +15,14 @@
       "_comment": "Example — use hostname as in LibreNMS Devices",
       "device": "web.example.invalid",
       "services": [
-        { "type": "tcp", "desc": "HTTPS 443", "param": "-H 192.0.2.10 -p 443" }
+        { "type": "tcp", "name": "HTTPS", "desc": "HTTPS 443", "param": "-H 192.0.2.10 -p 443" }
       ]
     },
     {
       "_comment": "Second host",
       "device": "app.example.invalid",
       "services": [
-        { "type": "tcp", "desc": "HTTP 80", "param": "-H 192.0.2.11 -p 80" }
+        { "type": "tcp", "name": "HTTP", "desc": "HTTP 80", "param": "-H 192.0.2.11 -p 80" }
       ]
     }
   ]
