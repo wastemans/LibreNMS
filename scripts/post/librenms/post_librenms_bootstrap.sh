@@ -9,9 +9,9 @@ DB="${DB_CONTAINER:-librenms-db}"
 
 LNMSCMD() { docker exec -u librenms "$LIBRENMS" lnms "$@" ; }
 
-# --- wait for DB + migrations (migrate:status can pass before tables like `roles` exist)
+# --- wait for DB + migrations + seeder (table exists but 'admin' role must be seeded too)
 while
-  ! docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" "$DB_NAME" -N -e "SHOW TABLES LIKE 'roles'" 2>/dev/null | grep -q roles
+  ! docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" "$DB_NAME" -N -e "SELECT name FROM roles WHERE name='admin'" 2>/dev/null | grep -q admin
 do
   echo "Waiting for DB + migrations..."
   sleep 3
