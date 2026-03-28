@@ -1,6 +1,6 @@
 # monitor_stack
 
-**librenms/** — LibreNMS on a dedicated VM: SNMP monitoring, syslog receiver, auto-discovery, graphs.
+LibreNMS on a dedicated VM: SNMP monitoring, syslog receiver, auto-discovery, graphs.
 
 LibreNMS replaces NMIS9. It polls SNMP (CPU, memory, disk, swap, I/O, interfaces), receives syslog, auto-discovers your estate by subnet sweep, and ships with decent pre-built graphs for all of it.
 
@@ -46,7 +46,7 @@ See [Docker Engine install](https://docs.docker.com/engine/install/) if you need
 
 ## LibreNMS Stack
 
-Everything lives under `librenms/`. Compose file: `librenms/docker-compose.yaml`. Lifecycle scripts use **`docker compose`** (V2 plugin). Config template: `librenms/.env.example` → copy to **`librenms/.env`** (gitignored).
+Compose file: `docker-compose.yaml`. Lifecycle scripts use **`docker compose`** (V2 plugin). Config template: `.env.example` → copy to **`.env`** (gitignored).
 
 ### Architecture
 
@@ -87,15 +87,15 @@ flowchart LR
 | `scan`       | `librenms-scan`       | **No — exits** | Bootstrap: admin user, optional imports, `lnms scan`. Needs Docker socket. |
 
 
-Only `**scan`** is one-shot. To run bootstrap again after it exited: `docker compose up -d` from `librenms/` (starts a new `scan` task).
+Only `**scan`** is one-shot. To run bootstrap again after it exited: `docker compose up -d` (starts a new `scan` task).
 
 ### Environment variables (quick answers)
 
 
 | Question                               | Answer                                                                                                                                                                                          |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Where are they defined?                | `**librenms/.env**`                                                                                                                                                                             |
-| Who reads `.env`?                      | **Docker Compose**, from the directory that contains `docker-compose.yaml` (run compose from `**librenms/`**).                                                                                  |
+| Where are they defined?                | `**.env**`                                                                                                                                                                                      |
+| Who reads `.env`?                      | **Docker Compose**, from the directory that contains `docker-compose.yaml` (run compose from the repo root).                                                                                    |
 | How do they get into containers?       | Compose replaces `**${NAME}**` in `docker-compose.yaml`. Each service only gets variables listed under its `**environment:**` block.                                                            |
 | Does every service see every variable? | **No.** Example: `DISCOVERY_SUBNET` / `SNMP_COMMUNITY` are only on `**librenms`**. `**scan**` gets admin/DB/API flags; it runs `lnms` **inside** `librenms`, so scans use `**librenms`**’s env. |
 | What about `config.php`?               | Mounted into `**librenms**`. It calls `**getenv()**` for URL, SNMP, subnets, syslog purge — those must be passed into the `**librenms**` container via compose.                                 |
@@ -106,14 +106,14 @@ If a value looks missing: set it in `.env`, confirm it appears under that servic
 ### Configure `.env`
 
 ```bash
-cp librenms/.env.example librenms/.env
+cp .env.example .env
 ```
 
 Edit at least: `DATA_DIR`, `TZ`, `DNS_SERVER`, `APP_URL`, DB fields, `SNMP_COMMUNITY`, `DISCOVERY_SUBNET`, `LNMS_ADMIN_USER`, `LNMS_ADMIN_PASS`. Optional: `LNMS_API_TOKEN` (from `openssl rand -hex 16`) plus `IMPORT_ALERT_COLLECTION` / `IMPORT_SERVICES` — see `.env.example` comments.
 
 ### Lifecycle scripts
 
-In `librenms/scripts/utility/` (run from anywhere; scripts `cd` to `librenms/`):
+In `scripts/utility/` (run from anywhere; scripts `cd` to repo root):
 
 
 | Script                    | Effect                               |
@@ -128,8 +128,8 @@ In `librenms/scripts/utility/` (run from anywhere; scripts `cd` to `librenms/`):
 ### Start and logs
 
 ```bash
-cd ~/projects/LibreNMS/librenms
-./scripts/utility/build-stack.sh
+cd ~/projects/LibreNMS
+./scripts/utility/utility_build-stack.sh
 docker logs -f librenms
 docker logs librenms-scan
 ```
@@ -169,13 +169,12 @@ docker exec -u librenms librenms lnms user:add --password='PASSWORD' --role=admi
 **Stack / debugging**
 
 ```bash
-cd ~/projects/LibreNMS/librenms
+cd ~/projects/LibreNMS
 docker compose ps
 docker logs -f librenms-nginx
 docker logs librenms-syslogng
 docker compose up -d --force-recreate scan
-docker exec librenms env | grep -E 'SNMP|DISCOVERY'
-docker exec -u librenms librenms env | grep -E 'SNMP|DISCOVERY'
+docker exec librenms env
 ```
 
 **Connectivity from inside `librenms` (host network = same as VM)**
@@ -196,7 +195,7 @@ docker exec -e MYSQL_PWD='YOUR_DB_PASSWORD' librenms-db mariadb -u librenms libr
 ### When something breaks
 
 - **Bootstrap / first login / auto-scan:** read `**docker logs librenms-scan`**, not only `librenms`.
-- `**SQLSTATE ... Connection refused` to MySQL during bootstrap:** MariaDB was not accepting connections yet, or `librenms` could not reach `127.0.0.1:3306`. Check `**docker logs librenms-db`**, wait, then recreate bootstrap: `docker compose up -d --force-recreate scan` from `librenms/`.
+- `**SQLSTATE ... Connection refused` to MySQL during bootstrap:** MariaDB was not accepting connections yet, or `librenms` could not reach `127.0.0.1:3306`. Check `**docker logs librenms-db`**, wait, then recreate bootstrap: `docker compose up -d --force-recreate scan`.
 - `**lnms config:get nets` works but DB commands fail:** `config:get` can reflect file config before the app has a stable DB session; treat **user:add / scan** errors as “DB or migrations not ready yet” and retry after DB is up.
 - **Web UI asks to create a user:** bootstrap did not finish; use `**lnms user:add`** above or fix `librenms-scan` errors and re-run `scan`.
 - **Subnets or SNMP wrong:** check `**lnms config:get nets`** and LibreNMS **Settings** (DB overrides `config.php`).
@@ -218,7 +217,7 @@ Admin > **Validate Install**. This stack uses `**CACHE_DRIVER=redis`** and `**SE
 If `LNMS_API_TOKEN` is set and `IMPORT_ALERT_COLLECTION=1`, bootstrap imports the bundled collection (same idea as **Alerts > Add rule from collection**). Manual re-run:
 
 ```bash
-cd ~/projects/LibreNMS/librenms
+cd ~/projects/LibreNMS
 export LNMS_API_TOKEN='same as .env'
 ./scripts/utility/utility_librenms_import_alerts.sh
 ```

@@ -1,4 +1,4 @@
 # Real variable files - copy from .example and fill in your values
-librenms/.env
-librenms/scripts/post/librenms/services.json
+.env
+scripts/post/librenms/services.json
 .cursor

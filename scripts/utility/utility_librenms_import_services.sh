@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # This only exists to allow manual re-running of the service import.
 #
-# Usage (from host, repo librenms/ directory):
+# Usage (from host, repo root):
 # export LNMS_API_TOKEN='...' ./scripts/utility/utility_librenms_import_services.sh
 
 set -euo pipefail
