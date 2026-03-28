@@ -2,7 +2,7 @@
 /**
  * Import service checks from services.json into LibreNMS.
  * POSTs each entry to /api/v0/services/{device}.
- * Skips services whose desc already exists on that device — safe to re-run.
+ * Skips when type+desc+param already exist (API returns services nested in [[...]]; we flatten first).
  *
  * Env:
  *   LNMS_API_TOKEN (required)
@@ -33,6 +33,31 @@ $headers = [
     'X-Auth-Token: ' . $token,
 ];
 
+/**
+ * LibreNMS returns "services" as an array of one-element arrays (see API docs), not a flat list.
+ * Flatten so dedupe works; otherwise array_column never sees service_desc and every import creates dupes.
+ */
+function flatten_services_response(array $decoded): array
+{
+    $raw = $decoded['services'] ?? [];
+    $out = [];
+    foreach ($raw as $item) {
+        if (isset($item['service_id'])) {
+            $out[] = $item;
+            continue;
+        }
+        if (is_array($item)) {
+            foreach ($item as $row) {
+                if (is_array($row) && isset($row['service_id'])) {
+                    $out[] = $row;
+                }
+            }
+        }
+    }
+
+    return $out;
+}
+
 function api_get(string $url, array $headers): array
 {
     $ch = curl_init($url);
@@ -45,10 +70,15 @@ function api_get(string $url, array $headers): array
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     if ($code !== 200) {
+        fwrite(STDERR, "WARN list services HTTP {$code} {$url}\n");
         return [];
     }
     $decoded = json_decode($body, true);
-    return $decoded['services'] ?? [];
+    if (! is_array($decoded)) {
+        return [];
+    }
+
+    return flatten_services_response($decoded);
 }
 
 function api_post(string $url, array $headers, string $body): array
@@ -79,13 +109,22 @@ foreach ($devices as $device) {
     $dev = $device['device'];
     echo "\nDevice: {$dev}\n";
 
-    $existing       = api_get("{$base}/api/v0/services/{$dev}", $headers);
-    $existing_descs = array_column($existing, 'service_desc');
+    $existing = api_get("{$base}/api/v0/services/" . rawurlencode($dev), $headers);
+    $existing_keys = [];
+    foreach ($existing as $row) {
+        $d = trim((string) ($row['service_desc'] ?? ''));
+        $p = trim((string) ($row['service_param'] ?? ''));
+        $t = trim((string) ($row['service_type'] ?? ''));
+        $existing_keys[$t . "\0" . $d . "\0" . $p] = true;
+    }
 
     foreach ($device['services'] as $svc) {
-        $desc = $svc['desc'] ?? '';
+        $desc = trim((string) ($svc['desc'] ?? ''));
+        $param = trim((string) ($svc['param'] ?? ''));
+        $type = trim((string) ($svc['type'] ?? ''));
+        $key = $type . "\0" . $desc . "\0" . $param;
 
-        if (in_array($desc, $existing_descs, true)) {
+        if (isset($existing_keys[$key])) {
             echo "  SKIP {$desc}\n";
             $total_skip++;
             continue;
@@ -95,7 +134,7 @@ foreach ($devices as $device) {
             'type'     => $svc['type'],
             'name'     => $svc['name'] ?? $svc['type'],
             'desc'     => $desc,
-            'param'    => $svc['param'] ?? '',
+            'param'    => $param,
             'ip'       => $svc['ip'] ?? '',
             'disabled' => $svc['disabled'] ?? 0,
             'ignore'   => $svc['ignore'] ?? 0,
@@ -106,6 +145,7 @@ foreach ($devices as $device) {
         if ($code >= 200 && $code < 300) {
             echo "  OK   {$desc}\n";
             $total_ok++;
+            $existing_keys[$key] = true;
         } else {
             $msg = json_decode($resp, true)['message'] ?? $resp;
             echo "  FAIL {$desc} (HTTP {$code}: {$msg})\n";
