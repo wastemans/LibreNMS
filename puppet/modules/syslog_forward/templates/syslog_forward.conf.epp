@@ -1,8 +1,0 @@
-<%- | String $host, Integer $port | -%>
-# Managed by Puppet - syslog_forward module. Do not edit manually.
-# Forwards all syslog to the central receiver via TCP with an in-memory
-# queue to buffer messages if the receiver is temporarily unreachable.
-# "& stop" halts further rsyslog processing after the forward, preventing
-# local writes to /var/log/syslog etc. (file must load before 50-default.conf).
-*.* action(type="omfwd" target="<%= $host %>" port="<%= $port %>" protocol="tcp" action.resumeRetryCount="-1" queue.type="linkedList" queue.size="10000")
-& stop
