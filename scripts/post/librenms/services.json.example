@@ -4,9 +4,9 @@
     "host_path": "scripts/post/librenms/services.json (mounted at /data/init-scripts/services.json)",
     "import_command": "docker exec -e LNMS_API_TOKEN=$LNMS_API_TOKEN -e LNMS_URL=http://127.0.0.1:8000 librenms php /data/init-scripts/post_librenms_import_services.php",
     "notes": [
-      "device must match LibreNMS hostname (see devices table), not necessarily the IP in param.",
+      "device = Hostname/IP in LibreNMS, not Display Name.",
       "192.0.2.0/24 is TEST-NET-1 (documentation only) — replace with your network.",
-      "Re-running import skips existing service desc per device."
+      "Re-running import skips existing checks per device."
     ],
     "scan_command": "sudo nmap -sT -Pn -p1-10000 -T4 --open -n -oG - 192.0.2.0/24 | grep 'Ports:'"
   },
