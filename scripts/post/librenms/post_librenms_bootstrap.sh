@@ -9,13 +9,12 @@ DB="${DB_CONTAINER:-librenms-db}"
 
 LNMSCMD() { docker exec -u librenms "$LIBRENMS" lnms "$@" ; }
 
-# --- wait until MariaDB answers and LibreNMS can talk to it (not config:get nets)
+# --- wait for DB + migrations (migrate:status can pass before tables like `roles` exist)
 while
-  ! docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" -e "SELECT 1" >/dev/null 2>&1 ||
-  ! docker exec -u librenms "$LIBRENMS" php /opt/librenms/artisan migrate:status >/dev/null 2>&1
+  ! docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" "$DB_NAME" -N -e "SHOW TABLES LIKE 'roles'" 2>/dev/null | grep -q roles
 do
-  echo "Waiting for MariaDB + LibreNMS..."
-  sleep 2
+  echo "Waiting for DB + migrations..."
+  sleep 3
 done
 echo "LibreNMS is ready."
 
