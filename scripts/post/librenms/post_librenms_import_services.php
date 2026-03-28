@@ -93,6 +93,7 @@ foreach ($devices as $device) {
 
         $payload = json_encode([
             'type'     => $svc['type'],
+            'name'     => $svc['name'] ?? $svc['type'],
             'desc'     => $desc,
             'param'    => $svc['param'] ?? '',
             'ip'       => $svc['ip'] ?? '',

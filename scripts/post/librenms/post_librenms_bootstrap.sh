@@ -19,6 +19,7 @@ LNMSCMD user:add --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER" |
 # --- set base_url in DB (validator checks DB, not config.php)
 APP_URL=$(docker exec "$LIBRENMS" sh -c 'echo $APP_URL')
 LNMSCMD config:set base_url "$APP_URL"
+LNMSCMD config:set show_services 1
 LNMSCMD cache:clear
 
 # --- API token row (REST imports need this even if you skip alert rules)
