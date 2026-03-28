@@ -15,6 +15,12 @@ do echo "Waiting for DB + migrations..." ; sleep 3 ; done && echo "LibreNMS is r
 
 # --- admin (safe to re-run; password comes from .env)
 LNMSCMD user:add --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER" || true
+
+# --- set base_url + secure cookies in DB so the validator is happy, these should really be in the compose file but the image doesn't have it
+APP_URL=$(docker exec "$LIBRENMS" sh -c 'echo $APP_URL')
+LNMSCMD config:set base_url "$APP_URL"
+LNMSCMD config:set session.secure_cookie true
+LNMSCMD config:set cache_store redis
 LNMSCMD cache:clear
 
 # --- API token row (REST imports need this even if you skip alert rules)

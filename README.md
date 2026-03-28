@@ -1,4 +1,4 @@
-# monitor_stack
+# LibreNMS
 
 LibreNMS on a dedicated VM: SNMP monitoring, syslog, auto-discovery, graphs.
 

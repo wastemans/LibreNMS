@@ -57,9 +57,8 @@ services:
       REDIS_HOST: 127.0.0.1
       APP_URL: ${APP_URL}
       CACHE_DRIVER: redis
-      CACHE_STORE: redis
       SESSION_DRIVER: redis
-      SESSION_SECURE_COOKIE: "true"
+
       SNMP_COMMUNITY: ${SNMP_COMMUNITY}
       DISCOVERY_SUBNET: ${DISCOVERY_SUBNET}
       SYSLOG_PURGE_DAYS: ${SYSLOG_PURGE_DAYS}
@@ -92,7 +91,6 @@ services:
       REDIS_HOST: 127.0.0.1
       APP_URL: ${APP_URL}
       CACHE_DRIVER: redis
-      CACHE_STORE: redis
       SESSION_DRIVER: redis
       DISPATCHER_NODE_ID: dispatcher1
       SIDECAR_DISPATCHER: 1
