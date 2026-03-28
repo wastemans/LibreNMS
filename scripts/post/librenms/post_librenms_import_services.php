@@ -51,7 +51,7 @@ function api_get(string $url, array $headers): array
     return $decoded['services'] ?? [];
 }
 
-function api_post(string $url, array $headers, string $body): int
+function api_post(string $url, array $headers, string $body): array
 {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -61,10 +61,10 @@ function api_post(string $url, array $headers, string $body): int
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 30,
     ]);
-    curl_exec($ch);
+    $resp = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    return $code;
+    return [$code, $resp];
 }
 
 $total_ok   = 0;
@@ -100,13 +100,14 @@ foreach ($devices as $device) {
             'ignore'   => $svc['ignore'] ?? 0,
         ], JSON_THROW_ON_ERROR);
 
-        $code = api_post("{$base}/api/v0/services/{$dev}", $headers, $payload);
+        [$code, $resp] = api_post("{$base}/api/v0/services/{$dev}", $headers, $payload);
 
         if ($code >= 200 && $code < 300) {
             echo "  OK   {$desc}\n";
             $total_ok++;
         } else {
-            echo "  FAIL {$desc} (HTTP {$code})\n";
+            $msg = json_decode($resp, true)['message'] ?? $resp;
+            echo "  FAIL {$desc} (HTTP {$code}: {$msg})\n";
             $total_fail++;
         }
     }
