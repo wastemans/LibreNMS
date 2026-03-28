@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-DATA_DIR=$(grep '^DATA_DIR=' .env | cut -d= -f2-)
+DATA_DIR=$(. .env && echo "$DATA_DIR")
 
 echo "WARNING: This will permanently delete all data at: ${DATA_DIR}"
 read -r -p "Type YES to confirm: " confirm
