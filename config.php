@@ -13,5 +13,6 @@ foreach (array_filter(explode(' ', getenv('DISCOVERY_SUBNET') ?: '10.0.0.0/24'))
 }
 
 $config['enable_syslog'] = 1;
+$config['show_services'] = 1;
 $config['ping_rrd'] = 1;
 $config['syslog_purge'] = (int) (getenv('SYSLOG_PURGE_DAYS') ?: 30);
