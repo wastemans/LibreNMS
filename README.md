@@ -1,9 +1,6 @@
 # monitor_stack
 
-Two things on a dedicated VM:
-
-- **librenms/** — LibreNMS: SNMP monitoring, syslog receiver, auto-discovery, graphs
-- **puppet/** — `syslog_forward` module: pushes syslog from every managed node to LibreNMS
+**librenms/** — LibreNMS on a dedicated VM: SNMP monitoring, syslog receiver, auto-discovery, graphs.
 
 LibreNMS replaces NMIS9. It polls SNMP (CPU, memory, disk, swap, I/O, interfaces), receives syslog, auto-discovers your estate by subnet sweep, and ships with decent pre-built graphs for all of it.
 
@@ -34,18 +31,22 @@ pct create 115 local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst --hostname 
 > pct start 115
 > ```
 
-Install Docker and docker-compose inside the container:
+Install **Docker Engine** from Docker’s install script (includes the **Compose V2** plugin as `docker compose`). Do **not** use Debian’s `docker.io` / `docker-compose` packages for this stack.
 
 ```bash
 pct enter 115
-apt update && apt install -y curl docker-compose && curl -fsSL https://get.docker.com | sh
+apt update && apt install -y ca-certificates curl
+curl -fsSL https://get.docker.com | sh
+docker compose version   # should print compose plugin, not “docker-compose: command not found”
 ```
+
+See [Docker Engine install](https://docs.docker.com/engine/install/) if you need distro-specific steps instead of the convenience script.
 
 ---
 
 ## LibreNMS Stack
 
-Everything lives under `librenms/`. Compose file: `librenms/docker-compose.yaml`. Config template: `librenms/.env.example` → copy to `**librenms/.env**` (gitignored).
+Everything lives under `librenms/`. Compose file: `librenms/docker-compose.yaml`. Lifecycle scripts use **`docker compose`** (V2 plugin). Config template: `librenms/.env.example` → copy to **`librenms/.env`** (gitignored).
 
 ### Architecture
 
@@ -239,62 +240,6 @@ Survives `docker compose down`. Removed only if you run `**destructive-recreate.
 
 ---
 
-## Puppet Module — syslog_forward
-
-Replaces `x_rsyslog`. Self-contained module that handles the full local-log-suppression + central-forwarding stack in one place:
-
-
-| What           | How                                                                                                         |
-| -------------- | ----------------------------------------------------------------------------------------------------------- |
-| journald       | Drop-in sets `Storage=none` + `ForwardToSyslog=yes` — no disk or RAM journal, everything goes to rsyslog    |
-| rsyslog        | `49-syslog-forward.conf` forwards `*.*` to LibreNMS over TCP then `& stop` — nothing written to `/var/log/` |
-| Logrotate      | Not managed — nothing to rotate                                                                             |
-| Legacy cleanup | Removes `99-syslog-forward.conf` if present from older versions                                             |
-
-
-### Install
-
-```bash
-cp -r puppet/modules/syslog_forward /etc/puppetlabs/code/environments/production/modules/
-```
-
-### Replace x_rsyslog
-
-In `Compatible.yaml` (or wherever `x_rsyslog` is declared), swap it out:
-
-```yaml
-classes:
-  - 'syslog_forward'
-  # remove 'x_rsyslog' — syslog_forward replaces it entirely
-```
-
-### Hiera
-
-Add to `all.yaml` (or your equivalent "all nodes" layer):
-
-```yaml
-syslog_forward::host: '10.1.1.60'
-syslog_forward::port: 514
-```
-
-### Apply to nodes
-
-```puppet
-include syslog_forward
-```
-
-Queues 10,000 messages in memory if LibreNMS is unreachable, flushes when it comes back.
-
-### Verify
-
-```bash
-logger "test from $(hostname)"
-```
-
-Check LibreNMS > Devices > (your device) > Syslog.
-
----
-
 ## SNMP on Debian hosts
 
 LibreNMS polls via SNMP. Each Debian VM needs `snmpd` installed and configured:
@@ -316,24 +261,24 @@ Restart: `systemctl restart snmpd`
 
 LibreNMS will discover and start graphing CPU, memory, swap, disk, load, I/O, and interfaces automatically once the device is found.
 
-### Monitoring specific processes (e.g. Puppet server)
+### Monitoring specific processes
 
 Add `proc` lines to `/etc/snmp/snmpd.conf` to expose process counts via SNMP:
 
 ```
-# Alert if puppetserver process count drops below 1
-proc puppetserver 1
+# Alert if the process count drops below 1
+proc nginx 1
 ```
 
 LibreNMS picks these up automatically under **Device > Processes** and can alert if the count goes to zero.
 
 ### Monitoring specific TCP ports (services)
 
-Use LibreNMS's **Services** feature for Nagios-style TCP port checks — useful for checking that Puppet (8140), a web app, or any other service is actually accepting connections:
+Use LibreNMS's **Services** feature for Nagios-style TCP port checks — useful for checking that a web app or other service is actually accepting connections:
 
 1. **Device > Services > Add Service**
 2. Type: `tcp`
-3. Parameters: `-H 127.0.0.1 -p 8140`
+3. Parameters: `-H 127.0.0.1 -p 443`
 4. Set alert thresholds
 
 This alerts if the port stops accepting connections, independently of SNMP.

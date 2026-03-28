@@ -13,9 +13,9 @@
   "devices": [
     {
       "_comment": "Example — use hostname as in LibreNMS Devices",
-      "device": "puppet.example.invalid",
+      "device": "web.example.invalid",
       "services": [
-        { "type": "tcp", "desc": "Puppet 8140", "param": "-H 192.0.2.10 -p 8140" }
+        { "type": "tcp", "desc": "HTTPS 443", "param": "-H 192.0.2.10 -p 443" }
       ]
     },
     {

@@ -9,6 +9,8 @@
 
 services:
   db:
+    # Tested with:
+    # image: mariadb:12.2.2
     image: mariadb:latest
     container_name: librenms-db
     restart: unless-stopped
@@ -23,6 +25,8 @@ services:
       - ${DATA_DIR}/db:/var/lib/mysql
 
   redis:
+    # Tested with:
+    # image: redis:8.2-alpine
     image: redis:latest
     container_name: librenms-redis
     restart: unless-stopped
@@ -30,6 +34,8 @@ services:
 
   librenms:
     build: .
+    # Tested with:
+    # image: librenms/librenms:1.112.0
     image: librenms-local:latest
     container_name: librenms
     restart: unless-stopped
@@ -62,8 +68,10 @@ services:
 
   dispatcher:
     build: .
-    image: librenms-local:latest
     container_name: librenms-dispatcher
+    # Tested with:
+    # image: librenms/librenms:1.112.0
+    image: librenms-local:latest
     restart: unless-stopped
     hostname: dispatcher1
     network_mode: host
@@ -90,6 +98,8 @@ services:
 
   syslogng:
     build: .
+    # Tested with:
+    # image: librenms/librenms:1.112.0
     image: librenms-local:latest
     container_name: librenms-syslogng
     restart: unless-stopped
@@ -115,6 +125,8 @@ services:
       - ${DATA_DIR}/librenms:/data
 
   nginx:
+    # Tested with:
+    # image: nginx:1.28.0-alpine
     image: nginx:stable-alpine
     container_name: librenms-nginx
     restart: unless-stopped
@@ -129,6 +141,8 @@ services:
     entrypoint: ["sh", "/pre_nginx_start.sh"]
 
   scan:
+    # Tested with:
+    # image: docker:28-cli
     image: docker:cli
     container_name: librenms-scan
     restart: "no"

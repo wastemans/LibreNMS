@@ -10,7 +10,7 @@ echo "WARNING: This will permanently delete all data at: ${DATA_DIR}"
 read -r -p "Type YES to confirm: " confirm
 [ "$confirm" = "YES" ] || { echo "Aborted."; exit 1; }
 
-docker-compose down
+docker compose down
 rm -rf "${DATA_DIR:?}"
-docker-compose build
-docker-compose up -d
+docker compose build
+docker compose up -d
