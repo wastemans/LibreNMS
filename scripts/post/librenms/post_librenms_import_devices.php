@@ -65,7 +65,6 @@ foreach ($devices as $dev) {
         'display'       => $dev['display'] ?? $host,
         'snmp_disable'  => !empty($dev['snmp_disable']),
         'ping_fallback' => !empty($dev['ping_fallback']),
-        'hardware_type' => $dev['hardware_type'] ?? '',
     ], JSON_THROW_ON_ERROR);
 
     $ch = curl_init("{$base}/api/v0/devices");
