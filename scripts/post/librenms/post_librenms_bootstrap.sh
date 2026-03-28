@@ -14,7 +14,7 @@ while ! docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" "$DB_
 do echo "Waiting for DB + migrations..." ; sleep 3 ; done && echo "LibreNMS is ready."
 
 # --- admin (safe to re-run; password comes from .env)
-LNMSCMD user:add --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER"
+LNMSCMD user:add --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER" || true
 LNMSCMD cache:clear
 
 # --- API token row (REST imports need this even if you skip alert rules)
