@@ -14,3 +14,4 @@ docker compose down
 rm -rf "${DATA_DIR:?}"
 docker compose build
 docker compose up -d
+bash "$(dirname "$0")/utility_stack_status.sh"
