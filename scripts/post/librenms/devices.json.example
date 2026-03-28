@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "description": "Ping-only devices — copy to devices.json (gitignored) and replace with your IPs/names.",
+    "notes": [
+      "snmp_disable=true makes these ping-only (no SNMP polling).",
+      "display is the friendly name shown in the UI.",
+      "hardware_type can be: network, server, firewall, workstation, etc.",
+      "Re-running import skips existing hostnames."
+    ]
+  },
+  "devices": [
+    {
+      "hostname": "192.0.2.1",
+      "display": "Core Switch",
+      "hardware_type": "network",
+      "snmp_disable": true,
+      "ping_fallback": true
+    },
+    {
+      "hostname": "192.0.2.2",
+      "display": "Edge Firewall",
+      "hardware_type": "network",
+      "snmp_disable": true,
+      "ping_fallback": true
+    }
+  ]
+}

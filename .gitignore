@@ -1,4 +1,5 @@
 # Real variable files - copy from .example and fill in your values
 .env
 scripts/post/librenms/services.json
+scripts/post/librenms/devices.json
 .cursor

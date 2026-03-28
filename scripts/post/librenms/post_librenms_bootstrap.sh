@@ -39,6 +39,14 @@ if [ "${IMPORT_ALERT_COLLECTION:-1}" = "1" ] && [ -n "${LNMS_API_TOKEN:-}" ]; th
   LNMSCMD cache:clear
 fi
 
+# --- optional: devices.json via API (before scan so ping-only devices are added first)
+if [ -n "${LNMS_API_TOKEN:-}" ]; then
+  docker exec \
+    -e LNMS_API_TOKEN="$LNMS_API_TOKEN" \
+    -e LNMS_URL=http://127.0.0.1:8000 \
+    "$LIBRENMS" php /data/init-scripts/post_librenms_import_devices.php
+fi
+
 # --- discovery (uses nets from env / config.php in the librenms container)
 LNMSCMD scan
 
