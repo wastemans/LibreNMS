@@ -7,6 +7,8 @@ set -eu
 LIBRENMS="${LIBRENMS_CONTAINER:-librenms}"
 DB="${DB_CONTAINER:-librenms-db}"
 
+LNMSCMD() { docker exec -u librenms "$LIBRENMS" lnms "$@" ; }
+
 # --- wait until MariaDB answers and LibreNMS can talk to it (not config:get nets)
 while
   ! docker exec -e MYSQL_PWD="$DB_PASSWORD" "$DB" mariadb -u"$DB_USER" -e "SELECT 1" >/dev/null 2>&1 ||
@@ -18,7 +20,8 @@ done
 echo "LibreNMS is ready."
 
 # --- admin (safe to re-run; password comes from .env)
-docker exec -u librenms "$LIBRENMS" lnms user:add --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER"
+LNMSCMD user:add --password="$LNMS_ADMIN_PASS" --role=admin "$LNMS_ADMIN_USER"
+LNMSCMD cache:clear
 
 # --- API token row (REST imports need this even if you skip alert rules)
 if [ -n "${LNMS_API_TOKEN:-}" ]; then
@@ -35,11 +38,11 @@ if [ "${IMPORT_ALERT_COLLECTION:-1}" = "1" ] && [ -n "${LNMS_API_TOKEN:-}" ]; th
     -e LNMS_API_TOKEN="$LNMS_API_TOKEN" \
     -e LNMS_URL=http://127.0.0.1:8000 \
     "$LIBRENMS" php /data/init-scripts/post_librenms_import_alerts.php
+  LNMSCMD cache:clear
 fi
 
 # --- discovery (uses nets from env / config.php in the librenms container)
-docker exec -u librenms "$LIBRENMS" lnms cache:clear
-docker exec -u librenms "$LIBRENMS" lnms scan
+LNMSCMD scan
 
 # --- optional: services.json via API (after scan so devices exist)
 if [ "${IMPORT_SERVICES:-1}" = "1" ] && [ -n "${LNMS_API_TOKEN:-}" ]; then

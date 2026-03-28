@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Manual re-run of the same alert import the bootstrap uses.
+# This only exists to allow manual re-running of the alert import.
 #
 # Usage (from host, repo librenms/ directory):
-#   export LNMS_API_TOKEN='...'   # same value as in .env
-#   ./scripts/post/librenms/post_librenms_import_alerts.sh
+# export LNMS_API_TOKEN='...' ./scripts/utility/utility_librenms_import_alerts.sh
 
 set -euo pipefail
 

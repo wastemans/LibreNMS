@@ -220,7 +220,7 @@ If `LNMS_API_TOKEN` is set and `IMPORT_ALERT_COLLECTION=1`, bootstrap imports th
 ```bash
 cd ~/projects/LibreNMS/librenms
 export LNMS_API_TOKEN='same as .env'
-./scripts/post/librenms/post_librenms_import_alerts.sh
+./scripts/utility/utility_librenms_import_alerts.sh
 ```
 
 ### Dashboards
@@ -282,20 +282,3 @@ Use LibreNMS's **Services** feature for Nagios-style TCP port checks — useful 
 4. Set alert thresholds
 
 This alerts if the port stops accepting connections, independently of SNMP.
-
----
-
-## Replacing NMIS9
-
-
-| NMIS9 function             | LibreNMS equivalent                       |
-| -------------------------- | ----------------------------------------- |
-| SNMP polling (all metrics) | Built-in poller — same MIBs, same data    |
-| Auto-discovery             | Subnet sweep via `$config['nets']`        |
-| Interface graphs           | Auto-generated per device                 |
-| Host resource graphs       | CPU, mem, disk, swap, load — all built-in |
-| Syslog                     | syslog-ng sidecar on port 514             |
-| Availability / alerting    | LibreNMS alerting (configure after setup) |
-
-
-NMIS9 can be switched off once LibreNMS has completed its first discovery sweep and you've verified devices are appearing.
