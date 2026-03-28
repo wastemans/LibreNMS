@@ -51,7 +51,7 @@ fi
 LNMSCMD scan
 
 # --- optional: services.json via API (after scan so devices exist)
-if [ "${IMPORT_SERVICES:-1}" = "1" ] && [ -n "${LNMS_API_TOKEN:-}" ]; then
+if [ -n "${LNMS_API_TOKEN:-}" ]; then
   docker exec \
     -e LNMS_API_TOKEN="$LNMS_API_TOKEN" \
     -e LNMS_URL=http://127.0.0.1:8000 \

@@ -21,8 +21,8 @@ $base = rtrim(getenv('LNMS_URL') ?: 'http://127.0.0.1:8000', '/');
 $path = getenv('SERVICES_JSON') ?: '/data/init-scripts/services.json';
 
 if (! is_readable($path)) {
-    fwrite(STDERR, "Cannot read {$path}\n");
-    exit(1);
+    fwrite(STDERR, "No services.json found at {$path} — skipping.\n");
+    exit(0);
 }
 
 $data    = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);

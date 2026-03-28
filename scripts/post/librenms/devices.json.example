@@ -12,14 +12,14 @@
     {
       "hostname": "192.0.2.1",
       "display": "Core Switch",
-      "hardware_type": "network",
+      "hardware_type": "Network",
       "snmp_disable": true,
       "ping_fallback": true
     },
     {
       "hostname": "192.0.2.2",
       "display": "Edge Firewall",
-      "hardware_type": "network",
+      "hardware_type": "Network",
       "snmp_disable": true,
       "ping_fallback": true
     }
